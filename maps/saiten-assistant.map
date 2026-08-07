@@ -1,0 +1,4 @@
+# saiten-assistant（Vertex は ADC を使うため GCP キーは載せない）
+OPENAI_API_KEY=api-key/openai/saiten-assistant
+REPRO_PASSCODE=app-password/saiten-assistant/staging
+OPENROUTER_API_KEY=api-key/openrouter/saiten-assistant

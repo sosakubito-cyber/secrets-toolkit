@@ -1,0 +1,3 @@
+# 採点用プロジェクト / grading_privacy_automation
+OPENAI_API_KEY=api-key/openai/homework-scoring
+GEMINI_API_KEY=api-key/gemini/aistudio

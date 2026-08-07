@@ -1,0 +1,20 @@
+# 秘密そのもの・機械固有の状態は絶対に入れない
+registry.txt
+cache/
+*.dat
+*.cred
+bw.cred
+.secrets-archive/
+*.env
+.env
+.env.*
+
+# 平文の資格情報が紛れ込みやすい拡張子
+*.pem
+*.p12
+*.key
+service_account*.json
+
+# OS
+.DS_Store
+Thumbs.db

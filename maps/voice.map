@@ -1,0 +1,4 @@
+# 音声書き写しプロジェクト
+DEEPGRAM_API_KEY=api-key/deepgram/main
+# @file: は一時ファイル(0600)に書き出してパスを渡す。コマンド終了時に自動削除される
+GOOGLE_APPLICATION_CREDENTIALS=@file:service-account/gcp/speech

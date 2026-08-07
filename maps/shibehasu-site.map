@@ -1,0 +1,4 @@
+# shibehasu-site — 秘密は含まない（キーチェーンの「名前」だけ）
+# 未登録。DNS 差し替え用に Zone→DNS→Edit スコープのトークンを発行したら
+#   secret-put api-token/cloudflare/shibehasu-site
+CLOUDFLARE_API_TOKEN=api-token/cloudflare/shibehasu-site
