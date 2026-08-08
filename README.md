@@ -77,6 +77,18 @@ secret-check                           # 登録状況（値は出ない）
 - Claude Code の `settings.json` deny で、値を画面に出す経路
   （`security find-generic-password` / `env` / `printenv`）を塞ぐ
 
+## 複数セッションからの同時利用
+
+`bw` CLI は単一の状態ファイル（`~/Library/Application Support/Bitwarden CLI/data.json`）を
+共有する。複数の Claude Code セッションが同時に bw を使うと、**後発の `bw lock` が
+先行セッションの鍵を破壊し、エラーにならず空の結果が返る**（終了コードも 0）。
+「金庫が空」「その秘密は登録されていない」という誤った結論を招く。
+
+`mac/_bw-common.sh` が排他ロック（`~/.config/secrets/.bw.lock`）と結果の妥当性検証を
+行うことで防いでいる。後から来た方は待機してから実行される。
+ロックが残ってしまった場合は `rm -rf ~/.config/secrets/.bw.lock`（保持プロセスが
+死んでいれば自動で奪う）。
+
 ## 既知の注意点
 
 - **Bitwarden CLI 2026.3.0 / 2026.4.1** はヘッドレス解錠が壊れている
