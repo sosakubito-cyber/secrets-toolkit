@@ -1,4 +1,4 @@
-# secret-sync.ps1 — Bitwarden の金庫を Windows のローカルキャッシュへ同期する。
+﻿# secret-sync.ps1 — Bitwarden の金庫を Windows のローカルキャッシュへ同期する。
 #   値は一切表示しない。Mac 版 secret-sync と同じ役割。
 #   -DryRun で確認のみ。
 param([switch]$DryRun)
@@ -37,7 +37,7 @@ try {
   $miss = 0
   if (Test-Path $script:CacheDir) {
     foreach ($f in Get-ChildItem $script:CacheDir -Filter *.dat) {
-      $n = ($f.BaseName -replace '__', '/')
+      $n = Get-NameFromCacheFile $f.BaseName
       if ($vaultNames -notcontains $n) {
         # bundle/bitwarden/* は循環依存のため意図的に金庫へ入れない
         if ($n -notlike 'bundle/bitwarden/*') {

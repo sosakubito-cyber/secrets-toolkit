@@ -1,4 +1,4 @@
-# secret-bootstrap.ps1 — Windows 版 初回設定（対話端末で1回だけ実行）
+﻿# secret-bootstrap.ps1 — Windows 版 初回設定（対話端末で1回だけ実行）
 #
 #   Bitwarden の認証情報を DPAPI で暗号化して保存する。
 #   DPAPI は「このWindowsユーザー・このPC」でしか復号できないため、
@@ -16,6 +16,12 @@ if (-not (Get-Command bw -ErrorAction SilentlyContinue)) {
   Write-Error "bw コマンドが見つかりません。先に Bitwarden CLI を入れてください:`n  winget install --id Bitwarden.CLI"
 }
 
+# マスターパスワードを対話入力するため、標準入力が繋がった端末でしか実行できない。
+# これは仕様。自動化・スクリプト経由の実行はここで止める。
+if ([Console]::IsInputRedirected) {
+  Write-Error "対話端末で実行してください。標準入力がリダイレクトされているため、マスターパスワードを安全に入力できません（この処理は自動化しない設計です）"
+}
+
 Write-Host "Bitwarden 連携の初回設定を行います。入力内容は画面に表示されません。`n"
 
 $Email    = Read-Host "Bitwarden のメールアドレス"
@@ -25,8 +31,16 @@ $MasterPw = Read-Host "マスターパスワード" -AsSecureString
 $MasterPw2= Read-Host "マスターパスワード（確認）" -AsSecureString
 
 function Plain([System.Security.SecureString]$s) {
-  [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))
+  # BSTR は必ず ZeroFreeBSTR で解放する（平文を非管理メモリに残さない）
+  $bstr = [IntPtr]::Zero
+  try {
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)
+    [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  } finally {
+    if ($bstr -ne [IntPtr]::Zero) {
+      [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+  }
 }
 
 if ((Plain $MasterPw) -ne (Plain $MasterPw2)) { Write-Error "マスターパスワードが一致しません" }

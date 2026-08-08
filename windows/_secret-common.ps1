@@ -1,4 +1,4 @@
-# _secret-common.ps1 — Windows 版の共通処理。単体では実行しない。
+﻿# _secret-common.ps1 — Windows 版の共通処理。単体では実行しない。
 #
 #   保管場所:
 #     %USERPROFILE%\.config\secrets\bw.cred        Bitwarden認証情報（DPAPI暗号化）
@@ -22,9 +22,18 @@ function Protect-Text([string]$Text) {
 }
 
 function Unprotect-Text([string]$Encrypted) {
+  # BSTR は必ず ZeroFreeBSTR で解放する。放置すると平文が非管理メモリに残る。
   $ss = ConvertTo-SecureString $Encrypted
-  [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($ss))
+  $bstr = [IntPtr]::Zero
+  try {
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($ss)
+    [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  } finally {
+    if ($bstr -ne [IntPtr]::Zero) {
+      [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+    $ss.Dispose()
+  }
 }
 
 function Set-CachedSecret([string]$Name, [string]$Value) {
@@ -39,6 +48,11 @@ function Get-CachedSecret([string]$Name) {
 }
 
 function Test-CachedSecret([string]$Name) { Test-Path (Get-SecretPathFor $Name) }
+
+function Get-NameFromCacheFile([string]$BaseName) {
+  # Get-SecretPathFor の逆変換。区切りに使った __ を / に戻す。
+  $BaseName -replace '__', '/'
+}
 
 function Get-BwCredentials {
   if (-not (Test-Path $script:CredFile)) {
@@ -66,14 +80,32 @@ function Open-BwSession {
 
 function Close-BwSession {
   bw lock *>$null
-  Remove-Item Env:BW_CLIENTSECRET, Env:BW_PASSWORD -ErrorAction SilentlyContinue
+  # BW_CLIENTID も必ず消す（消し忘れると後続プロセスに引き継がれる）
+  Remove-Item Env:BW_CLIENTID, Env:BW_CLIENTSECRET, Env:BW_PASSWORD -ErrorAction SilentlyContinue
+}
+
+function Get-SecretMapPath([string]$ProfileName) {
+  Join-Path $script:ConfDir "$ProfileName.map"
+}
+
+function Test-SecretMap([string]$ProfileName) {
+  if ([string]::IsNullOrWhiteSpace($ProfileName)) { return $false }
+  Test-Path (Get-SecretMapPath $ProfileName)
+}
+
+function Get-SecretProfiles {
+  if (-not (Test-Path $script:ConfDir)) { return @() }
+  @(Get-ChildItem $script:ConfDir -Filter *.map | ForEach-Object { $_.BaseName } | Sort-Object)
 }
 
 function Read-SecretMap([string]$ProfileName) {
   # <環境変数名>=<キーチェーン名> の行を読む。# 以降はコメント。
-  $map = Join-Path $script:ConfDir "$ProfileName.map"
+  $map = Get-SecretMapPath $ProfileName
   if (-not (Test-Path $map)) { throw "対応表がありません: $map" }
-  Get-Content $map | ForEach-Object {
+  # -Encoding UTF8 は必須。省略すると PS 5.1 は .map を ANSI(日本語環境では CP932)
+  # として読み、日本語コメント行の末尾が CP932 のリードバイトになった場合に
+  # 直後の改行を食って次の行が消える（= 項目が黙って1つ減る）。
+  Get-Content $map -Encoding UTF8 | ForEach-Object {
     $line = ($_ -split '#', 2)[0].Trim()
     if ($line) {
       $i = $line.IndexOf('=')
