@@ -61,27 +61,107 @@ function Get-BwCredentials {
   (Unprotect-Text (Get-Content -Path $script:CredFile -Raw).Trim()) | ConvertFrom-Json
 }
 
+# --- bw の排他制御 -----------------------------------------------------------
+#   bw CLI は単一の状態ファイル（%AppData%\Bitwarden CLI\data.json）を共有する。
+#   複数のセッションが同時に bw を使うと、後発の `bw lock` が先行セッションの鍵を
+#   破壊し、エラーにならず空の結果が返る（終了コードも 0）。「金庫が空」という
+#   誤った結論を招くため、排他ロックと結果の妥当性検証を行う。
+#   Mac 版は ~/.config/secrets/.bw.lock のロックディレクトリ + PID 生死判定だが、
+#   Windows では名前付き Mutex を使う。保持プロセスが死ぬと OS が自動的に解放する
+#   （AbandonedMutexException）ため、古いロックの手動掃除が要らない。
+$script:BwMutex   = $null
+$script:BwSession = $null
+
+function Lock-BwCli {
+  $timeoutSec = if ($env:BW_LOCK_TIMEOUT) { [int]$env:BW_LOCK_TIMEOUT } else { 180 }
+  $created = $false
+  $m = New-Object System.Threading.Mutex($false, 'Local\secrets-toolkit-bw', [ref]$created)
+  $acquired = $false
+  try {
+    $acquired = $m.WaitOne(0)
+    if (-not $acquired) {
+      Write-Host "他のセッションが Bitwarden を使用中です。待機します..." -ForegroundColor Yellow
+      $acquired = $m.WaitOne([TimeSpan]::FromSeconds($timeoutSec))
+    }
+  } catch [System.Threading.AbandonedMutexException] {
+    # 保持していたプロセスが死んだ場合。所有権はこちらに移っている。
+    $acquired = $true
+  }
+  if (-not $acquired) {
+    $m.Dispose()
+    throw "他のセッションが Bitwarden を使用中です（${timeoutSec}秒待機しても解放されませんでした）。終わるのを待ってから再実行してください"
+  }
+  $script:BwMutex = $m
+}
+
+function Unlock-BwCli {
+  if ($script:BwMutex) {
+    try { $script:BwMutex.ReleaseMutex() } catch { }
+    $script:BwMutex.Dispose()
+    $script:BwMutex = $null
+  }
+}
+
 function Open-BwSession {
   # Bitwarden にログイン・解錠し、セッションキーを返す
-  $c = Get-BwCredentials
-  $env:BW_CLIENTID     = $c.clientId
-  $env:BW_CLIENTSECRET = $c.clientSecret
-  $env:BW_PASSWORD     = $c.masterPw
+  Lock-BwCli
+  try {
+    $c = Get-BwCredentials
+    $env:BW_CLIENTID     = $c.clientId
+    $env:BW_CLIENTSECRET = $c.clientSecret
+    $env:BW_PASSWORD     = $c.masterPw
 
-  bw login --check *>$null
-  if ($LASTEXITCODE -ne 0) {
-    bw login --apikey --quiet *>$null
-    if ($LASTEXITCODE -ne 0) { throw "bw login に失敗しました" }
+    bw login --check *>$null
+    if ($LASTEXITCODE -ne 0) {
+      bw login --apikey --quiet *>$null
+      if ($LASTEXITCODE -ne 0) { throw "bw login に失敗しました" }
+    }
+    $s = (bw unlock --passwordenv BW_PASSWORD --raw 2>$null)
+    if (-not $s) { throw "bw unlock に失敗しました" }
+
+    # 「セッションは返るが金庫は施錠のまま」（bw 2026.3.0/2026.4.1 の既知不具合）と、
+    # 他プロセスに鍵を壊された場合の両方をここで検出する
+    bw list items --session $s *>$null
+    if ($LASTEXITCODE -ne 0) {
+      throw "セッションは返りましたが金庫を読めません`n  bw が 2026.3.0 / 2026.4.1 なら既知不具合です: npm install -g @bitwarden/cli@2026.1.0"
+    }
+
+    $script:BwSession = $s
+    $s
+  } catch {
+    # ロックを握ったまま抜けない
+    Remove-Item Env:BW_CLIENTID, Env:BW_CLIENTSECRET, Env:BW_PASSWORD -ErrorAction SilentlyContinue
+    Unlock-BwCli
+    throw
   }
-  $s = (bw unlock --passwordenv BW_PASSWORD --raw 2>$null)
-  if (-not $s) { throw "bw unlock に失敗しました" }
-  $s
+}
+
+function Get-BwItems {
+  # 金庫の全項目を取得する。取得できなければ「空」ではなく失敗として扱う。
+  # 鍵を壊されると bw は終了コード 0 のまま空を返すことがあるため。
+  if (-not $script:BwSession) { throw "セッションが開かれていません" }
+  $raw = ((bw list items --session $script:BwSession 2>$null) -join "`n").Trim()
+  if ([string]::IsNullOrWhiteSpace($raw)) {
+    throw "金庫の項目を取得できませんでした（空の応答）。他のセッションが bw を操作した可能性があります。終わるのを待ってから再実行してください"
+  }
+  if ($raw -eq '[]') { return @() }   # 本当に空の金庫は正当
+  try { $items = $raw | ConvertFrom-Json } catch {
+    throw "金庫の項目を取得できませんでした（JSON として解釈できません）"
+  }
+  if ($null -eq $items) {
+    throw "金庫の項目を取得できませんでした（配列が返りませんでした）"
+  }
+  # ここで `,@($items)` としてはいけない。呼び出し側は @(Get-BwItems) で受けるため、
+  # 外側の1要素配列が展開されて「常に1件」になる。
+  @($items)
 }
 
 function Close-BwSession {
   bw lock *>$null
   # BW_CLIENTID も必ず消す（消し忘れると後続プロセスに引き継がれる）
   Remove-Item Env:BW_CLIENTID, Env:BW_CLIENTSECRET, Env:BW_PASSWORD -ErrorAction SilentlyContinue
+  $script:BwSession = $null
+  Unlock-BwCli
 }
 
 function Get-SecretMapPath([string]$ProfileName) {

@@ -9,8 +9,13 @@ $session = Open-BwSession
 try {
   Write-Host "同期中..."
   bw sync --session $session *>$null
+  if ($LASTEXITCODE -ne 0) { throw "bw sync に失敗しました。ネットワークとログイン状態を確認してください" }
 
-  $items = bw list items --session $session | ConvertFrom-Json
+  # 空・非配列を「金庫が空」と解釈しないよう Get-BwItems 経由で取得する
+  $items = @(Get-BwItems)
+  if ($items.Count -eq 0) {
+    Write-Host "金庫に項目がありません。取り込むものはありません" -ForegroundColor Yellow
+  }
 
   Write-Host "`n【1】金庫にあってローカルに無いもの"
   $added = 0

@@ -57,7 +57,8 @@ Bitwarden の金庫はプロジェクト単位のフォルダで整理する（�
 
 ### Windows
 
-`windows/SETUP.md` を参照。**Windows では未検証**（macOS 上で書かれている）。
+`windows/SETUP.md` を参照。Windows 11 / Windows PowerShell 5.1 (ja-JP) /
+Bitwarden CLI 2026.7.0 で実機検証済み。
 
 ## 日常の使い方
 
@@ -79,15 +80,21 @@ secret-check                           # 登録状況（値は出ない）
 
 ## 複数セッションからの同時利用
 
-`bw` CLI は単一の状態ファイル（`~/Library/Application Support/Bitwarden CLI/data.json`）を
-共有する。複数の Claude Code セッションが同時に bw を使うと、**後発の `bw lock` が
-先行セッションの鍵を破壊し、エラーにならず空の結果が返る**（終了コードも 0）。
-「金庫が空」「その秘密は登録されていない」という誤った結論を招く。
+`bw` CLI は単一の状態ファイル（macOS: `~/Library/Application Support/Bitwarden CLI/data.json`、
+Windows: `%AppData%\Bitwarden CLI\data.json`）を共有する。複数の Claude Code セッションが
+同時に bw を使うと、**後発の `bw lock` が先行セッションの鍵を破壊し、エラーにならず
+空の結果が返る**（終了コードも 0）。「金庫が空」「その秘密は登録されていない」という
+誤った結論を招く。**この問題は macOS / Windows の両方で起きる。**
 
-`mac/_bw-common.sh` が排他ロック（`~/.config/secrets/.bw.lock`）と結果の妥当性検証を
-行うことで防いでいる。後から来た方は待機してから実行される。
-ロックが残ってしまった場合は `rm -rf ~/.config/secrets/.bw.lock`（保持プロセスが
-死んでいれば自動で奪う）。
+- **macOS**: `mac/_bw-common.sh` が排他ロック（`~/.config/secrets/.bw.lock`）と
+  結果の妥当性検証を行う。ロックが残ってしまった場合は
+  `rm -rf ~/.config/secrets/.bw.lock`（保持プロセスが死んでいれば自動で奪う）。
+- **Windows**: `windows/_secret-common.ps1` が名前付き Mutex（`Local\secrets-toolkit-bw`）
+  で排他し、`Get-BwItems` が空・非配列の応答を失敗として扱う。保持プロセスが死ぬと
+  OS が自動的に解放するため、掃除は不要。
+
+どちらも後から来た方が待機してから実行される（既定 180 秒でタイムアウト。
+`BW_LOCK_TIMEOUT` で変更可）。
 
 ## 既知の注意点
 
