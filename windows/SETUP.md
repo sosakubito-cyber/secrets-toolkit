@@ -1,7 +1,10 @@
 # Windows での秘密情報運用 セットアップ手順
 
-> **検証済み**: Windows 11 / Windows PowerShell 5.1 (ja-JP, CP932) / Bitwarden CLI 2026.7.0
-> で実機確認済み。値が漏れる設計にはなっていませんが、初回は `-DryRun` や
+> **検証済み**: Windows 11 / Windows PowerShell 5.1 (ja-JP, CP932) / Bitwarden CLI 2026.7.0。
+> 実際の金庫に接続し、bootstrap → sync（25件取り込み）→ check → secrets-run の
+> 全工程を実機で通してあります。`@file:` の GCP 認証 JSON が node の `JSON.parse` を
+> 通ること、コマンド終了時に一時ファイルが消えること、終了コードが伝播することを
+> 実データで確認済み。値が漏れる設計にはなっていませんが、初回は `-DryRun` や
 > `secret-check.ps1` から試すことを勧めます。
 
 ## Windows 固有の落とし穴（修正済み・触るときは注意）
@@ -141,6 +144,29 @@ Bitwarden のメールアドレス、client_id、client_secret、マスターパ
 
 client_id / client_secret は `https://vault.bitwarden.com` →
 設定 → セキュリティ → キー → 「APIキーを表示」で確認できます。
+
+### 起動できない場合
+
+実機で実際に踏んだ順に2つあります。
+
+**1. コマンドプロンプトで実行している**
+
+プロンプトが `C:\Users\thebi>` なら cmd.exe です。PowerShell は先頭に `PS` が付いて
+`PS C:\Users\thebi>` になります。cmd では `.ps1` を打っても実行されません
+（既定の関連付けで開こうとするだけで、エラーすら出ないことがあります）。
+`Win + R` → `powershell` で開き直してください。
+
+**2. 実行ポリシーで拒否される**
+
+> このシステムではスクリプトの実行が無効になっているため…
+
+PowerShell は起動時の実行ポリシーを保持するため、`Set-ExecutionPolicy` を実行する
+**前**から開いていたウィンドウでは反映されません。開き直すか、システム設定を
+一切変更せずにその1回だけ迂回する次の形で実行してください。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\bin\secret-bootstrap.ps1"
+```
 
 ## 手順5. 金庫から取り込む
 
