@@ -1,6 +1,7 @@
 # HANDOFF — 秘密情報の集約と、その周辺で見つかった欠陥
 
-最終更新: 2026-08-14（本体は 2026-08-09 の記録。§1-5 / §3-7 / §5-3 のみ後から追記・訂正）
+最終更新: 2026-08-14（本体は 2026-08-09 の記録。§1-5 / §1-6 / §2-6 / §3-7〜3-9 / §5 を後から追記・訂正。
+Windows の実機検証が済んだため、旧 §5-3「Windows 版の検証」は §1-6 へ移して §5 を採番し直した）
 このファイルだけ読めば作業を再開できるように書いてある。
 **秘密の値は一切書かない。出てくるのは「名前」だけ。**
 
@@ -10,7 +11,8 @@
 
 デスクトップに散っていた平文の資格情報26件を **Bitwarden（正本）+ macOS キーチェーン（実行時）**
 へ集約し、その過程で **4つの実害あるバグ**を見つけて直した
-（その後さらに、Windows 実機で5件 §1-5、見張り役の付け忘れで3件 §3-8）。未処理が7件（§5）。
+（その後さらに、Windows 実機で6件 §1-5/§1-6、見張り役の付け忘れで3件 §3-8）。
+**Mac / Windows とも実データで動作確認済み。** 未処理が6件（§5）。
 
 ---
 
@@ -56,7 +58,7 @@
 ### 1-5. Windows 版を実機で検証した（2026-08-09 / 別マシン・後から追記）
 Windows 11 / Windows PowerShell 5.1（ja-JP・CP932）/ Bitwarden CLI 2026.7.0 で
 `windows/*.ps1` 5本を実行し、**Windows でだけ壊れる欠陥を5つ**見つけて直した（`a5d37e0`）。
-旧 §5-3 が「特に確認すべき」と書いていた2点が、そのまま実際のバグだった。
+当初この文書が「特に確認すべき」と書いていた2点が、そのまま実際のバグだった。
 
 - **`--` が消える**: PowerShell が素の `--` を引数から取り除くため `IndexOf($args,'--')` が常に -1。
   **全呼び出しが usage エラーで死んでいた**（`--` が最後の引数のときの `1..0` 逆順範囲の罠も同時に修正）
@@ -74,6 +76,24 @@ Windows 11 / Windows PowerShell 5.1（ja-JP・CP932）/ Bitwarden CLI 2026.7.0 �
 （`Local\secrets-toolkit-bw`）を使う。Windows は保持プロセスが死ぬと mutex を自動解放するので、
 Mac 版のような PID 生存確認つきロックディレクトリは要らない。
 
+### 1-6. Windows で実データの往復まで通した（2026-08-14 / `d528520`）
+`secret-bootstrap.ps1` を対話端末で手動実行（§2-6）した後、残りを一気に検証した。
+**値は一度も出力していない**（文字数・真偽値・ハッシュのみで確認）。
+
+- `secret-sync.ps1` — **25件取り込み**、命名規則違反0、金庫に無い項目0
+- `secret-check.ps1` — **11/12 OK**。唯一の MISS は `shibehasu-site` で、
+  map 自身に「未発行」と書かれている既知分（§5-6）。バグではない
+- `secrets-run.ps1` — **6プロファイル全て動作**。終了コードは `exit 42` → 42 / `exit 0` → 0
+- **`@file:` の実データ検証**: `GOOGLE_APPLICATION_CREDENTIALS` が
+  2404 bytes / BOM なし / JSON パース可 / node からも読める。
+  コマンド終了後、ファイル・親フォルダとも削除済みを確認。
+  **§1-5 の BOM 修正が実利用で効いている**（修正前なら node 側が読めずに落ちていた）
+
+この過程で Windows 固有のバグをもう1つ発見した。**`bw` の stderr が
+`$ErrorActionPreference='Stop'` の下で例外に化け、bootstrap が起動できなかった。**
+→ 全ての `bw` 呼び出しを共通ラッパー `Invoke-Bw` に集約し、生の呼び出しをゼロにした。
+発見の経緯は §3-9。
+
 ---
 
 ## 2. 重要な設計判断
@@ -88,7 +108,7 @@ Mac 版のような PID 生存確認つきロックディレクトリは要ら�
    `security find-generic-password` / `env` / `printenv`。値を画面に出す唯一の経路を塞いでおり、
    これが機械的な歯止めの全部
 5. **ローテーションは見送り中**（Yukiの条件「全アプリへ自動反映できるなら」を満たせない。
-   発行元での再発行は各社にAPIが無い）。ただし Bitwarden の APIキーだけは例外（§5-4）
+   発行元での再発行は各社にAPIが無い）。ただし Bitwarden の APIキーだけは例外（§5-3）
 6. **`secret-bootstrap` は自動化しない。対話端末で人が打つ。**
    自動化にはマスターパスワードと client_secret を渡す必要があり、それは**値を会話ログに残す**
    ことを意味する。Mac / Windows どちらも同じ。Windows 版は
@@ -142,6 +162,14 @@ EXITトラップ内の最終コマンドのステータスが本来の終了コ�
 ついでに `secret-sync` の集計行に、【3】メモありと空白修正の件数を追加した。
 **未実行での修正**（金庫を開けずに、読解と `bash -n` と判定ロジック単体の確認のみ）。
 
+### 3-9. 検証条件が実コードと違うと「問題なし」と誤報告になる（2026-08-14）
+Windows 側で「`bw` の stderr は `$ErrorActionPreference='Stop'` でも例外化しない」と
+**一度は問題なしと報告された**。しかしそれは**リダイレクト無しで試した**結果で、
+実コードは全箇所 `2>$null` 等を付けて呼んでいた。リダイレクトが付くと挙動が変わり、
+**bootstrap がそもそも起動できない**という形で後から出た（§1-6）。
+→ 動作確認は**実コードと同じ呼び方**で行う。呼び出し形が1つでも違うなら、それは別物。
+→ 同じ理由で、対策は1箇所に集約する方が安全（`Invoke-Bw` ラッパー、生の呼び出しゼロ）。
+
 ---
 
 ## 4. 環境の制約（時間を溶かさないために）
@@ -180,42 +208,41 @@ PR #1 の看板は「『この試験、進めて』で一続きに進む」だ�
 （`.dev.vars` の Access サービストークン + `app-password/saiten-assistant/staging`、
 走者は `scripts/repro-run.ts`）。
 
-### 5-3. Windows: `bw` 同時実行対策を入れた後の、本物の金庫での往復
-実機検証そのものは済んでいる（**§1-5 を見ること**）。残っているのはその後の1点だけ。
-
-`feadbfc`（名前付き mutex への移植）は **金庫に触れずに**検証した — 6秒保持する側の後ろで
-別プロセスが 5.1 秒待つこと、保持側を kill すると即座に引き継げること、`Get-BwItems` が
-`[]` と正常な配列を受け入れ、空・空白・非 JSON・null を弾くこと。
-つまり **`bw` セッション経路を書き換えた後、本物の金庫を通した `secret-sync.ps1` /
-`secrets-run.ps1` の往復を Windows で走らせていない。** 次に Windows を触るときに1回やる。
-
-### 5-4. Bitwarden APIキーの再発行（急がない）
+### 5-3. Bitwarden APIキーの再発行（急がない）
 `bitwarden_API_keys.txt` が iCloud 圏内に平文で置かれていた。ただし**マスターパスワードは含まれず、
 APIキー単体では金庫を復号できない**（E2E暗号化）ので緊急ではない。
 再発行は Web 金庫のみ（`bw` CLI に該当コマンドが無い）。その後 `secret-rotate-bw` で反映。
 
-### 5-5. `~/Documents` の `.env` 3件
+### 5-4. `~/Documents` の `.env` 3件
 `pop-economics-grading` / `AI面接用アプリ` / `saiten-assistant` の `.env` が
 **平文のまま iCloud にある**。ルールに従い中身は読んでいない。指示があれば同じ方式で移送する。
 
-### 5-6. Windows は「使う」専用。コマンドが7つ足りない ★方針が要る
+### 5-5. Windows は残り6本が未移植 ★方針が要る
 **目標は「Windows でも Mac と同等以上に使える、同期された環境」**（2026-08-14 に本人確認）。
-現状の実装はそこに届いていない。Mac 11本 / Windows 4本。
+Mac 11本 / **Windows 5本**（`d528520` で `secret-put` が入った）。
 
-| Windows にある | Windows に無い（Mac のみ） |
+| Windows にある | 未移植（Mac のみ） |
 |---|---|
-| `secret-bootstrap` 初期設定 | `secret-put` 新規登録 / `secret-push-bw` 金庫へ保存 |
-| `secret-sync` 金庫→ローカル | `secret-pull` 金庫から個別取得 / `secret-verify` 原本照合 |
-| `secret-check` 確認 | `secret-list-remote` 金庫の一覧 / `secret-rotate-bw` 鍵入替 |
-| `secrets-run` 実行時に注入 | `secret-push` Cloudflare / GitHub Actions へ配布 |
+| `secret-bootstrap` 初期設定 | `secret-push-bw` 金庫へ保存 |
+| `secret-sync` 金庫→ローカル | `secret-pull` 金庫から個別取得 |
+| `secret-check` 確認 | `secret-verify` 原本照合 |
+| `secret-put` 新規登録（ローカル） | `secret-list-remote` 金庫の一覧 |
+| `secrets-run` 実行時に注入 | `secret-rotate-bw` 鍵入替 / `secret-push` CF・GHA へ配布 |
 
-つまり **Windows は「受け取って使う」ことしかできず、新しい秘密を登録できない。**
-日々の運用は回るが、鍵を1つ増やすたびに Mac かスマホの Bitwarden アプリが要る。
-→ 移植するなら `secret-put` → `secret-push-bw` の順（この2つで登録経路が開く）。
-→ **順序**: 先に §5-3 の実機往復（A）を済ませてから移植する。今の状態が見えないまま移植すると、
-   動かないときに「移植のバグ」か「そもそも設定が済んでいない」かを切り分けられない。
+**Windows でローカルに登録はできるが、金庫へ戻す経路がまだ無い**（`secret-push-bw` 未移植）。
+Windows だけで登録した秘密は**そのPCにしか存在しない**状態になる。→ 次に移植するならここ。
 
-### 5-7. その他
+同じ Windows 側で残っている細かい差:
+
+- **`secret-sync` の項目名の空白自動修正が Windows 未実装**（金庫への書き込みを伴うため見送り）。
+  README にはこの差を明記した（`0f1cd0b`）。実装するか、Mac 側で年に数回流すかを決める
+- **`service-account/app-store-connect/*` のローカルコピーが Windows に無い。**
+  §2-3 の通り正本は `bundle/...` のメモ欄で、そこから純PEMを取り出す手当ては Mac 版にしかない。
+  CI を Windows から回すなら別途必要
+- キャッシュの `.dat` は DPAPI 暗号化済みで他ユーザーは復号できないが、
+  フォルダの ACL は既定（SYSTEM / Administrators / 本人）。本人限定に絞る余地はある
+
+### 5-6. その他
 - `api-token/unverified/saiten-assistant-gcp` は名前と中身の形状が食い違う
   （53文字・Cloudflareトークンと同形。GCPキーの形式ではない）。**要確認**
 - `api-token/cloudflare/saiten-mirror-readonly` は形状からの推定で Cloudflare と判断。**要確認**

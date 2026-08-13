@@ -58,7 +58,12 @@ Bitwarden の金庫はプロジェクト単位のフォルダで整理する（�
 ### Windows
 
 `windows/SETUP.md` を参照。Windows 11 / Windows PowerShell 5.1 (ja-JP) /
-Bitwarden CLI 2026.7.0 で実機検証済み。
+Bitwarden CLI 2026.7.0 で、実データを通した往復まで検証済み。
+
+**Windows 版は5本（Mac は11本）。** `secret-bootstrap` / `secret-sync` / `secret-check` /
+`secret-put` / `secrets-run` があり、`secret-pull` / `secret-push-bw` / `secret-verify` /
+`secret-list-remote` / `secret-rotate-bw` / `secret-push` は未移植。
+金庫への保存と配布は Mac 側で行う。
 
 ## 日常の使い方
 
@@ -107,4 +112,7 @@ Windows: `%AppData%\Bitwarden CLI\data.json`）を共有する。複数の Claud
   反映のみを担当し、失敗時は古い認証情報へ自動で巻き戻す
 - **Google Apps Script のスクリプトプロパティは自動反映できない**。`secret-push` が
   対応するのは Cloudflare Workers と GitHub Actions のみ
-- 項目名の前後に空白が混入すると完全一致検索から漏れる。`secret-sync` が自動修正する
+- 項目名の前後に空白が混入すると完全一致検索から漏れる。**Mac 版の** `secret-sync` が
+  金庫の項目名を書き換えて自動修正する。**Windows 版は未実装**（金庫への書き込みを伴うため
+  見送り中）。Windows しか使わない環境では、末尾の空白は手で直すか Mac 側で `secret-sync` を
+  1回流す必要がある
