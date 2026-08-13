@@ -120,10 +120,16 @@ try {
   # 注意: PowerShell の 1..0 は降順範囲 (1,0) になるため、
   #       引数が無い場合に $cmdParts[1..($cmdParts.Count-1)] を使ってはいけない
   #
-  # @() で包むのは必須。範囲の結果が要素1個だと配列ではなく String に潰れ、
-  # それを @cmdArgs で splat すると **1文字ずつの引数** に展開される。
-  #   secrets-run -- python script.py  →  python は 'C' だけを受け取って落ちる
-  # 引数がちょうど1個のときだけ壊れるため、2個以上で試すと気づけない。
+  # @() で包むのは必須。潰れるのは範囲そのものではなく、**if 文の結果を代入する**ところ。
+  # 実測（PS 5.1）:
+  #     $c[1..1]                              -> Object[]（配列のまま）
+  #     $x = if (...) { $c[1..1] } else {@()} -> String（if の出力がパイプラインを通り、
+  #                                              要素1個の配列が展開されてスカラーになる）
+  #     $x = @(if (...) { ... })              -> Object[]（これで防げる）
+  # String を @cmdArgs で splat すると **1文字ずつの引数** に展開される。
+  #   secrets-run -- python script.py  →  python は 's' 'c' 'r' ... を受け取って落ちる
+  # 引数がちょうど1個のときだけ壊れる（2個以上なら if の出力も配列のまま）ため、
+  # 2個以上で試すと気づけない。範囲の書き方を変えても直らないので @() を外さないこと。
   $cmdArgs = @(if ($cmdParts.Count -gt 1) { $cmdParts[1..($cmdParts.Count - 1)] } else { @() })
 
   # 子が PowerShell の関数・コマンドレットだと $LASTEXITCODE が更新されず、
