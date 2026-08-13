@@ -7,9 +7,23 @@
 > 実データで確認済み。値が漏れる設計にはなっていませんが、初回は `-DryRun` や
 > `secret-check.ps1` から試すことを勧めます。
 
+## 変更したら回帰テストを回す
+
+```powershell
+.\windows\tests\run-tests.ps1              # 金庫に触れないテストだけ
+.\windows\tests\run-tests.ps1 -WithVault   # 金庫を開くテストも含める
+```
+
+合成値のみを使い、**テスト中は `$env:USERPROFILE` を一時フォルダへ向ける**ので、
+本物の `%USERPROFILE%\.config\secrets` には触れません。
+
+下の「落とし穴」は文章で書いてあるだけでは守れませんでした（実際に、注意書きのある
+箇所を後から壊しています）。**テストが本体で、下の説明はその理由書**だと考えてください。
+
 ## Windows 固有の落とし穴（修正済み・触るときは注意）
 
 以下は macOS では起きず Windows でだけ壊れる箇所です。編集時に戻さないでください。
+すべて `windows/tests/run-tests.ps1` が検査しています。
 
 1. **`.ps1` は UTF-8 BOM 付きで保存する。**
    PS 5.1 は BOM が無い `.ps1` を ANSI（日本語環境では CP932）として読みます。
