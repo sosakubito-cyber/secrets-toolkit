@@ -64,6 +64,18 @@ Bitwarden CLI 2026.7.0 で、実データを通した往復まで検証済み。
 `secret-push`（Cloudflare / GitHub Actions への配布）の2本のみ。
 **日々の運用は Windows だけで完結する。**
 
+## 変更したら回帰テストを走らせる
+
+```bash
+mac/tests/run-tests.sh                  # 本物の金庫・キーチェーンに触れない
+mac/tests/run-tests.sh --with-vault     # 本物の金庫を読むものも含む（読み取りのみ）
+```
+
+Windows は `.\windows\tests\run-tests.ps1`（`-WithVault` で金庫も）。
+
+守っているのは全て**実際に踏んだ失敗**で、テストが本体・`HANDOFF.md` の §3 はその理由書。
+注意書きのある箇所を後から自分で壊した例が複数あるので、**文章では守れない**。
+
 ## 日常の使い方
 
 ```bash
