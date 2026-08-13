@@ -119,7 +119,12 @@ try {
 
   # 注意: PowerShell の 1..0 は降順範囲 (1,0) になるため、
   #       引数が無い場合に $cmdParts[1..($cmdParts.Count-1)] を使ってはいけない
-  $cmdArgs = if ($cmdParts.Count -gt 1) { $cmdParts[1..($cmdParts.Count - 1)] } else { @() }
+  #
+  # @() で包むのは必須。範囲の結果が要素1個だと配列ではなく String に潰れ、
+  # それを @cmdArgs で splat すると **1文字ずつの引数** に展開される。
+  #   secrets-run -- python script.py  →  python は 'C' だけを受け取って落ちる
+  # 引数がちょうど1個のときだけ壊れるため、2個以上で試すと気づけない。
+  $cmdArgs = @(if ($cmdParts.Count -gt 1) { $cmdParts[1..($cmdParts.Count - 1)] } else { @() })
 
   # 子が PowerShell の関数・コマンドレットだと $LASTEXITCODE が更新されず、
   # 前のコマンドの値が残る。0 に初期化してから実行する。
