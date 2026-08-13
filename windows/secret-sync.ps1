@@ -44,8 +44,12 @@ try {
     foreach ($f in Get-ChildItem $script:CacheDir -Filter *.dat) {
       $n = Get-NameFromCacheFile $f.BaseName
       if ($vaultNames -notcontains $n) {
-        # bundle/bitwarden/* は循環依存のため意図的に金庫へ入れない
-        if ($n -notlike 'bundle/bitwarden/*') {
+        # 意図的にローカルだけに置くもの（金庫に無くても異常ではない）:
+        #   bundle/bitwarden/*                  金庫を開ける鍵。入れると循環依存になる
+        #   service-account/app-store-connect/* 金庫の bundle 項目から取り出した純 PEM の
+        #                                       実行時コピー。正本は bundle 側。CI ツールは
+        #                                       コメント行付きの PEM を弾くため必要
+        if ($n -notlike 'bundle/bitwarden/*' -and $n -notlike 'service-account/app-store-connect/*') {
           Write-Host "  金庫に無い $n" -ForegroundColor Yellow; $miss++
         }
       }
@@ -53,12 +57,23 @@ try {
   }
   if ($miss -eq 0) { Write-Host "  （なし）" }
 
-  Write-Host "`n【3】命名規則 <種別>/<サービス>/<用途> に従っていない項目"
+  # ローカルは1名前に1値しか持てないため、ログイン項目(password を取り込む)に
+  # メモ欄があるとその中身は同期で黙って捨てられる。捨てたことを告げる。
+  Write-Host "`n【3】ログイン項目にメモ欄がある（同期ではメモ側が取り込まれません）"
+  $both = @($items | Where-Object {
+    $_.type -eq 1 -and
+    -not [string]::IsNullOrWhiteSpace($_.notes) -and
+    -not [string]::IsNullOrWhiteSpace($_.login.password)
+  })
+  if ($both.Count -eq 0) { Write-Host "  （なし）" }
+  else { $both | ForEach-Object { Write-Host "  取り込み対象外のメモあり $($_.name)" -ForegroundColor Yellow } }
+
+  Write-Host "`n【4】命名規則 <種別>/<サービス>/<用途> に従っていない項目"
   $types = 'api-key|api-token|service-account|app-password|webhook-url|recovery-codes|bundle'
   $bad = @($items | Where-Object { $_.name.Trim() -notmatch "^($types)/[^/]+/.+$" })
   if ($bad.Count -eq 0) { Write-Host "  （なし・全項目が規則に従っています）" }
   else { $bad | ForEach-Object { Write-Host "  要修正 $($_.name)" -ForegroundColor Yellow } }
 
-  Write-Host "`n取り込み $added 件 / 金庫に無い $miss 件 / 名前要修正 $($bad.Count) 件"
+  Write-Host "`n取り込み $added 件 / 金庫に無い $miss 件 / メモあり $($both.Count) 件 / 名前要修正 $($bad.Count) 件"
 }
 finally { Close-BwSession }
