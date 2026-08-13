@@ -6,7 +6,6 @@
 #       secret-put → secret-push-bw で登録した時に 1 行に昇格させる。
 #
 # 金庫に未登録のため、まだ書けないもの（TTS ベイクオフ docs/TTS_RESEARCH.md）:
-#   FISH_AUDIO_API_KEY=api-key/fish-audio/listening-quiz-factory   (Fish Audio S2.1 Pro)
 #   AZURE_SPEECH_KEY=api-key/azure-speech/listening-quiz-factory   (Azure ja-JP DragonHD)
 #   AZURE_SPEECH_REGION=config/azure-speech/region                 (例: southeastasia)
 #   MINIMAX_API_KEY / MINIMAX_GROUP_ID  (TTS・音楽・H3 のフォールバック)
@@ -14,3 +13,5 @@
 ELEVENLABS_API_KEY=api-key/elevenlabs/listening-quiz-factory
 # Gemini は AI Studio のキーがアカウント共通なので grading と同じものを参照する
 GEMINI_API_KEY=api-key/gemini/aistudio
+# Fish はアカウント 1 つを全プロジェクトで共有するので main（金庫の実名に一致）
+FISH_AUDIO_API_KEY=api-key/fish-audio/main
