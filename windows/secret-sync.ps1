@@ -8,8 +8,9 @@ $ErrorActionPreference = 'Stop'
 $session = Open-BwSession
 try {
   Write-Host "同期中..."
-  bw sync --session $session *>$null
-  if ($LASTEXITCODE -ne 0) { throw "bw sync に失敗しました。ネットワークとログイン状態を確認してください" }
+  if ((Invoke-Bw sync --session $session).ExitCode -ne 0) {
+    throw "bw sync に失敗しました。ネットワークとログイン状態を確認してください"
+  }
 
   # 空・非配列を「金庫が空」と解釈しないよう Get-BwItems 経由で取得する
   $items = @(Get-BwItems)

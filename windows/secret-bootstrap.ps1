@@ -7,9 +7,11 @@
 #   前提: bw コマンドが PATH にあること
 #         winget install --id Bitwarden.CLI   または   npm i -g @bitwarden/cli
 $ErrorActionPreference = 'Stop'
+# Invoke-Bw を共有するため読み込む（bw の stderr で落ちないようにするラッパー）
+. (Join-Path $PSScriptRoot '_secret-common.ps1')
 
-$ConfDir = Join-Path $env:USERPROFILE '.config\secrets'
-$CredFile = Join-Path $ConfDir 'bw.cred'
+$ConfDir  = $script:ConfDir
+$CredFile = $script:CredFile
 New-Item -ItemType Directory -Force -Path $ConfDir | Out-Null
 
 if (-not (Get-Command bw -ErrorAction SilentlyContinue)) {
@@ -50,19 +52,23 @@ $env:BW_CLIENTSECRET = Plain $ClientSec
 $env:BW_PASSWORD     = Plain $MasterPw
 
 Write-Host "`n== ログイン確認 =="
-bw login --check *>$null
-if ($LASTEXITCODE -ne 0) {
-  bw login --apikey --quiet *>$null
-  if ($LASTEXITCODE -ne 0) { Write-Error "bw login に失敗しました。client_id / client_secret を確認してください" }
+# bw の呼び出しは必ず Invoke-Bw を通す。素の `bw ... *>$null` は、bw が情報メッセージを
+# stderr に書いた時点で ErrorRecord 化され、終了コード 0 でもここで落ちる。
+if ((Invoke-Bw login --check).ExitCode -ne 0) {
+  if ((Invoke-Bw login --apikey --quiet).ExitCode -ne 0) {
+    Write-Error "bw login に失敗しました。client_id / client_secret を確認してください"
+  }
 }
 Write-Host "  ログイン成功"
 
 Write-Host "== ヘッドレス解錠の確認 =="
-$session = (bw unlock --passwordenv BW_PASSWORD --raw 2>$null)
-if (-not $session) { Write-Error "bw unlock に失敗しました" }
+$u = Invoke-Bw unlock --passwordenv BW_PASSWORD --raw
+$session = $u.Output
+if ($u.ExitCode -ne 0 -or -not $session) {
+  Write-Error "bw unlock に失敗しました。マスターパスワードを確認してください"
+}
 # セッションが本当に有効か、実際に金庫を読んで確かめる（既知のリグレッション対策）
-bw list items --session $session *>$null
-if ($LASTEXITCODE -ne 0) {
+if ((Invoke-Bw list items --session $session).ExitCode -ne 0) {
   Write-Error "セッションは返りましたが金庫が解錠されていません。bw 2026.3.0 / 2026.4.1 の既知不具合です。`n  npm install -g @bitwarden/cli@2026.1.0 でピン留めしてください"
 }
 Write-Host "  解錠成功（金庫の読み出しまで確認）"
@@ -80,7 +86,7 @@ $enc = ConvertTo-SecureString $payload -AsPlainText -Force | ConvertFrom-SecureS
 Set-Content -Path $CredFile -Value $enc -Encoding ASCII
 Write-Host "  保存しました: $CredFile"
 
-bw lock *>$null
+[void](Invoke-Bw lock)
 Remove-Item Env:BW_CLIENTID, Env:BW_CLIENTSECRET, Env:BW_PASSWORD -ErrorAction SilentlyContinue
 
 Write-Host "`n完了しました。次に secret-sync.ps1 を実行すると金庫の全項目が取り込まれます。"

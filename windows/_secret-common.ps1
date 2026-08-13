@@ -70,6 +70,33 @@ function Get-BwCredentials {
   (Unprotect-Text (Get-Content -Path $script:CredFile -Raw).Trim()) | ConvertFrom-Json
 }
 
+function Invoke-Bw {
+  # bw の呼び出しは必ずこれを通す。直接 `bw ... *>$null` と書いてはいけない。
+  #
+  #   bw は情報メッセージ（例: "Could not find dir, ...; creating it instead."）を
+  #   stderr に書く。PS 5.1 では native コマンドの stderr をリダイレクトすると
+  #   ErrorRecord に変換されるため、$ErrorActionPreference='Stop' の下では
+  #   終了コードが 0 でもスクリプト全体が落ちる。bash の 2>&1 には無い挙動で、
+  #   Mac 版には存在しない問題。ここだけ Continue にして受け止める。
+  #
+  #   戻り値: ExitCode と Output(stdout のみ)。値を含みうるので呼び出し側で表示しないこと。
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$BwArgs)
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $merged = & bw @BwArgs 2>&1
+    $code   = $LASTEXITCODE
+    # stderr 由来の ErrorRecord は捨て、stdout の行だけを残す
+    $stdout = @($merged |
+      Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
+      ForEach-Object { [string]$_ })
+    [pscustomobject]@{
+      ExitCode = $code
+      Output   = ($stdout -join "`n").Trim()
+    }
+  } finally { $ErrorActionPreference = $prev }
+}
+
 # --- bw の排他制御 -----------------------------------------------------------
 #   bw CLI は単一の状態ファイル（%AppData%\Bitwarden CLI\data.json）を共有する。
 #   複数のセッションが同時に bw を使うと、後発の `bw lock` が先行セッションの鍵を
@@ -120,18 +147,18 @@ function Open-BwSession {
     $env:BW_CLIENTSECRET = $c.clientSecret
     $env:BW_PASSWORD     = $c.masterPw
 
-    bw login --check *>$null
-    if ($LASTEXITCODE -ne 0) {
-      bw login --apikey --quiet *>$null
-      if ($LASTEXITCODE -ne 0) { throw "bw login に失敗しました" }
+    if ((Invoke-Bw login --check).ExitCode -ne 0) {
+      if ((Invoke-Bw login --apikey --quiet).ExitCode -ne 0) {
+        throw "bw login に失敗しました。client_id / client_secret を確認してください"
+      }
     }
-    $s = (bw unlock --passwordenv BW_PASSWORD --raw 2>$null)
-    if (-not $s) { throw "bw unlock に失敗しました" }
+    $u = Invoke-Bw unlock --passwordenv BW_PASSWORD --raw
+    $s = $u.Output
+    if ($u.ExitCode -ne 0 -or -not $s) { throw "bw unlock に失敗しました。マスターパスワードを確認してください" }
 
     # 「セッションは返るが金庫は施錠のまま」（bw 2026.3.0/2026.4.1 の既知不具合）と、
     # 他プロセスに鍵を壊された場合の両方をここで検出する
-    bw list items --session $s *>$null
-    if ($LASTEXITCODE -ne 0) {
+    if ((Invoke-Bw list items --session $s).ExitCode -ne 0) {
       throw "セッションは返りましたが金庫を読めません`n  bw が 2026.3.0 / 2026.4.1 なら既知不具合です: npm install -g @bitwarden/cli@2026.1.0"
     }
 
@@ -149,7 +176,9 @@ function Get-BwItems {
   # 金庫の全項目を取得する。取得できなければ「空」ではなく失敗として扱う。
   # 鍵を壊されると bw は終了コード 0 のまま空を返すことがあるため。
   if (-not $script:BwSession) { throw "セッションが開かれていません" }
-  $raw = ((bw list items --session $script:BwSession 2>$null) -join "`n").Trim()
+  $r = Invoke-Bw list items --session $script:BwSession
+  if ($r.ExitCode -ne 0) { throw "金庫の項目を取得できませんでした（bw が終了コード $($r.ExitCode) を返しました）" }
+  $raw = $r.Output
   if ([string]::IsNullOrWhiteSpace($raw)) {
     throw "金庫の項目を取得できませんでした（空の応答）。他のセッションが bw を操作した可能性があります。終わるのを待ってから再実行してください"
   }
@@ -166,7 +195,7 @@ function Get-BwItems {
 }
 
 function Close-BwSession {
-  bw lock *>$null
+  [void](Invoke-Bw lock)
   # BW_CLIENTID も必ず消す（消し忘れると後続プロセスに引き継がれる）
   Remove-Item Env:BW_CLIENTID, Env:BW_CLIENTSECRET, Env:BW_PASSWORD -ErrorAction SilentlyContinue
   $script:BwSession = $null
