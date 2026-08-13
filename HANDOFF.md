@@ -180,7 +180,18 @@ Windows 側で「`bw` の stderr は `$ErrorActionPreference='Stop'` でも例�
    `service-account/app-store-connect/*` は既定でスキップ・名指しなら通す（正本は bundle 側）。
 → Windows 版 `secret-push-bw.ps1` は最初から同じ規則を実装している。
 
-### 3-11. 副作用を先に置くと、何もしなかった実行でも痕跡が残る（2026-08-14）
+### 3-11. 「食い違う」と注記するより、土俵を揃える（2026-08-14）
+`secret-verify.ps1` は原本を `Get-Content` でテキストとして読んでいた。**BOM が落ちる**ので、
+Mac 版（`cat` でバイト列）と同じファイルでも判定が変わる。「Mac では不一致・Windows では一致」
+という、最も疑いにくい形の食い違いになる。最初は注記で済ませたが、
+**BOM 由来の壊れ方はこの1日で4件踏んでいる**ので、注記ではなく実装を合わせた。
+→ `[System.IO.File]::ReadAllBytes` で読み、`Get-SecretHashOfBytes` で両端の ASCII 空白だけ
+   落としてハッシュ。キャッシュ側も UTF-8 バイト列にしてから同じ関数に通す。
+→ pwsh が無くても**アルゴリズムは検証できる**: Mac 版の `cat|trim|shasum` と、移植した
+   バイト処理を同じ入力に通して突き合わせた（16ケース一致 / BOM・CRLF・前後空白・複数行・
+   日本語・空白のみ × plain・firstline）。**構文が試せないことと、論理が試せないことは別。**
+
+### 3-12. 副作用を先に置くと、何もしなかった実行でも痕跡が残る（2026-08-14）
 `secret-push-bw` はフォルダの用意をループの**前**に行っていた。そのため
 **全件が拒否・スキップで終わった実行でも、空のフォルダだけが金庫に残る**。
 `--folder <打ち間違えた名前>` で1回叩くと、そのゴミが金庫に増える。
@@ -247,13 +258,13 @@ Mac 11本 / **Windows 9本**。日々の運用は Windows だけで完結する�
 **`secret-push`**（Cloudflare Workers / GitHub Actions へ配布）の2本のみ。
 どちらも頻度が低く、失敗したときの影響が大きい。**移植するなら Mac 版で1回通してから。**
 
-★ **`secret-pull.ps1` / `secret-verify.ps1` / `secret-list-remote.ps1` は Windows で未実行。**
-macOS に pwsh が無く構文検査もできないため、最初の実行が最初の検証になる（§3-9）。確認すべき点:
+`secret-pull` / `secret-verify` / `secret-list-remote` は Windows で検証済み（`801e6bd`、修正なし）。
+`secret-verify` は合成値のみで9ケース、`secret-pull` は6ケース。**`secret-pull` の正しさは
+「取り込んだ値が `secret-sync` の結果とハッシュ一致するか」で確かめた** — 値を出さずに
+往復を検証できる筋の良い方法なので、今後もこの形を使う。
 
-1. `secret-list-remote.ps1` — まずこれ。**読み取りだけなので一番安全**。項目数が26と出るか
-2. `secret-pull.ps1 <名前> <同じ名前>` — 既存の1件で。「更新」と出て読み戻し照合が通るか
-3. `secret-pull.ps1 ... --notes` — 複数行の値で。`Invoke-Bw get item` の JSON 解釈が要
-4. `secret-verify.ps1` — 金庫に触れないので単体で試せる。原本が手元にある1件で
+★ ただし `secret-verify.ps1` は**その後こちらで作り直した**ので、Windows で再検証が要る。
+原本をテキストではなく**バイト列**で読むようにした（下記）。9ケースの再実行をお願いする。
 
 `secret-push-bw.ps1` は Windows で**書き込み経路まで実証済み**（`221c20a`）。合成値を1件登録して
 ハッシュ一致を確認し、そのあと消して金庫を元の26件に戻している。1行→ログイン項目、

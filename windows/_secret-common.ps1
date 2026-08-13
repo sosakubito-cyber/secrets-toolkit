@@ -58,6 +58,27 @@ function Get-SecretHash([string]$Text) {
   } finally { $sha.Dispose() }
 }
 
+function Get-SecretHashOfBytes([byte[]]$Bytes) {
+  # バイト列のまま SHA-256 を取る。両端の ASCII 空白は落とす（Mac 版の trim と同じ）。
+  #
+  #   なぜ文字列版と別に要るか: Mac 版 secret-verify は原本ファイルを**バイト列**として
+  #   ハッシュする。Windows 側でテキストとして読むと BOM が落ちるため、同じファイルでも
+  #   ハッシュが変わり、「Mac では不一致・Windows では一致」という食い違いが起きる。
+  #   バイト列で揃えれば両プラットフォームで同じ判定になる。
+  #
+  #   配列を返すと呼び出し側の @() で展開される事故があるため、ハッシュ文字列だけを返す。
+  $ws = 9, 10, 11, 12, 13, 32       # HT LF VT FF CR SPACE
+  $s = 0; $e = $Bytes.Length - 1
+  while ($s -le $e -and $ws -contains $Bytes[$s]) { $s++ }
+  while ($e -ge $s -and $ws -contains $Bytes[$e]) { $e-- }
+  $len = $e - $s + 1
+  if ($len -lt 0) { $len = 0 }
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    ($sha.ComputeHash($Bytes, $s, $len) | ForEach-Object { $_.ToString('x2') }) -join ''
+  } finally { $sha.Dispose() }
+}
+
 function Get-NameFromCacheFile([string]$BaseName) {
   # Get-SecretPathFor の逆変換。区切りに使った __ を / に戻す。
   $BaseName -replace '__', '/'

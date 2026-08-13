@@ -244,9 +244,12 @@ secret-verify.ps1 api-key/openai/general C:\path\to\original.txt firstline
 
 「一致」「不一致」だけを出します。**値もハッシュ値も出しません。** 金庫にも触れません。
 
-Mac 版にある `rtf` モードはありません（`textutil` 相当が無いため）。
-また Mac 版がファイルをバイト列として扱うのに対し、こちらは UTF-8 テキストとして読むので、
-**BOM 付きのファイルでは結果が食い違うこと**があります。厳密に見るときは Mac 側で照合してください。
+Mac 版にある `rtf` モードはありません（`textutil` 相当が無いため）。RTF の原本は Mac 側で照合してください。
+
+原本は**バイト列のまま**ハッシュします。`Get-Content` で読むと BOM が落ち、同じファイルでも
+Mac 版と判定が食い違う（「Mac では不一致・Windows では一致」）ためです。
+Mac 版の `cat | trim | shasum` と16ケースでハッシュ一致を確認済み
+（BOM・CRLF・前後の空白・複数行・日本語・空白のみ、各 plain / firstline）。
 
 ### `--` の書き方（Windows 固有）
 

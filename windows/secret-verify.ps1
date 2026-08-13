@@ -4,12 +4,13 @@
 #
 #   金庫には触れないので bw セッションは開かない（ローカル完結・読み取りのみ）。
 #
+#   原本は**バイト列のまま**ハッシュする。テキストとして読むと BOM が落ち、同じファイルでも
+#   Mac 版と判定が食い違う（「Mac では不一致・Windows では一致」）。今日この BOM 由来の
+#   壊れ方を4件踏んでいるので、照合の土俵は両プラットフォームで揃えてある。
+#
 #   Mac 版との違い:
 #     - `rtf` モードは無い。macOS の textutil に相当するものが無いため。
 #       RTF の原本は Mac 側で照合すること（原本は ~/.secrets-archive/ にある）。
-#     - Mac 版はファイルをバイト列として扱うが、こちらは UTF-8 テキストとして読む。
-#       BOM 付きのファイルは BOM が落ちるため、Mac 版と結果が食い違いうる。
-#       BOM の有無まで含めて確かめたい場合は Mac 側で照合すること。
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_secret-common.ps1')
 
@@ -34,16 +35,19 @@ if (-not (Test-Path -LiteralPath $File -PathType Leaf)) {
   exit 1
 }
 
-# 原本側。-Encoding UTF8 は必須（省略すると PS 5.1 は CP932 として読む）
-$fileText = if ($Mode -ieq 'firstline') {
-  $first = Get-Content -LiteralPath $File -Encoding UTF8 -TotalCount 1
-  if ($null -eq $first) { '' } else { [string]$first }
-} else {
-  $raw = Get-Content -LiteralPath $File -Encoding UTF8 -Raw
-  if ($null -eq $raw) { '' } else { [string]$raw }
+# 原本側。Get-Content ではなくバイト列で読む（文字コード変換も BOM 除去も挟ませない）
+$fileBytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $File).ProviderPath)
+if ($Mode -ieq 'firstline') {
+  # 最初の LF まで。Mac 版の `head -n 1` に相当（CR は後段の trim が落とす）
+  $idx = [Array]::IndexOf($fileBytes, [byte]10)
+  if ($idx -ge 0) {
+    $head = New-Object byte[] $idx      # $idx が 0 でも長さ0の配列になる
+    [Array]::Copy($fileBytes, 0, $head, 0, $idx)
+    $fileBytes = $head
+  }
 }
-$hashFile = Get-SecretHash ($fileText.Trim())
-Remove-Variable fileText -ErrorAction SilentlyContinue
+$hashFile = Get-SecretHashOfBytes $fileBytes
+Remove-Variable fileBytes -ErrorAction SilentlyContinue
 
 # ローカルキャッシュ側
 if (-not (Test-CachedSecret $Name)) {
@@ -55,7 +59,8 @@ if ($null -eq $value) {
   Write-Host ("  読出失敗 {0}" -f $Name) -ForegroundColor Red
   exit 1
 }
-$hashCache = Get-SecretHash ($value.Trim())
+# キャッシュ側も同じ土俵に乗せる（UTF-8 のバイト列にしてから両端の空白を落とす）
+$hashCache = Get-SecretHashOfBytes ([System.Text.Encoding]::UTF8.GetBytes($value))
 Remove-Variable value -ErrorAction SilentlyContinue
 
 if ($hashFile -eq $hashCache) {
