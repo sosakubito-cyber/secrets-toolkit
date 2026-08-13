@@ -1,8 +1,16 @@
 # listening-quiz-factory — 秘密は含まない（金庫/キャッシュ上の「名前」だけ）
 # 使い方: secrets-run.ps1 listening-quiz-factory -- python -m pipeline.run ...
 #
-# 金庫に未登録のため、まだ書けないもの:
+# 注意: ここに書いた項目が 1 件でもローカルに無いと secrets-run は fail-closed で止まる。
+#       だから「金庫に実在するもの」だけを書く。未登録のものは下のコメントに置いておき、
+#       secret-put → secret-push-bw で登録した時に 1 行に昇格させる。
+#
+# 金庫に未登録のため、まだ書けないもの（TTS ベイクオフ docs/TTS_RESEARCH.md）:
+#   FISH_AUDIO_API_KEY=api-key/fish-audio/listening-quiz-factory   (Fish Audio S2.1 Pro)
+#   AZURE_SPEECH_KEY=api-key/azure-speech/listening-quiz-factory   (Azure ja-JP DragonHD)
+#   AZURE_SPEECH_REGION=config/azure-speech/region                 (例: southeastasia)
 #   MINIMAX_API_KEY / MINIMAX_GROUP_ID  (TTS・音楽・H3 のフォールバック)
 #   HF_TOKEN                            (Hugging Face)
-# 登録したら secret-put.ps1 → secret-push-bw.ps1 の順で入れて、ここに1行足す。
 ELEVENLABS_API_KEY=api-key/elevenlabs/listening-quiz-factory
+# Gemini は AI Studio のキーがアカウント共通なので grading と同じものを参照する
+GEMINI_API_KEY=api-key/gemini/aistudio
