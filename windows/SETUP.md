@@ -74,6 +74,9 @@ bw --version
 - `secret-check.ps1`
 - `secret-put.ps1`
 - `secret-push-bw.ps1`
+- `secret-pull.ps1`
+- `secret-verify.ps1`
+- `secret-list-remote.ps1`
 
 `.ps1` は **UTF-8 BOM 付きのまま**コピーしてください（理由は冒頭の落とし穴1）。
 
@@ -217,6 +220,34 @@ Bitwarden が正本という前提（README「設計上の約束」）から外�
 - 値は `bw` の**標準入力**へ渡します。引数に載せると同一ユーザーの他プロセスから
   コマンドラインが見え、PowerShell の transcript にも残るためです
 
+### 金庫から1件だけ取り込む（`secret-pull.ps1`）
+
+```powershell
+secret-list-remote.ps1                                          # まず金庫の項目名を見る（値は出ない）
+secret-pull.ps1 api-key/elevenlabs/listening-quiz-factory api-key/elevenlabs/listening-quiz-factory
+secret-pull.ps1 service-account/gcp/speech service-account/gcp/speech --notes
+```
+
+スマホで登録した鍵を1件だけ入れたいときに使います。全件なら `secret-sync.ps1` の方が速いです。
+**複数行の値（サービスアカウント JSON など）は `--notes`** を付けてください。
+`password` 欄ではなくセキュアメモ欄から取り出します。
+
+項目名は Bitwarden 側とローカル側で**同じ名前にする**のが約束です
+（`secret-pull.ps1 <名前> <同じ名前>`）。取り込み後に読み戻してハッシュで照合します。
+
+### 原本と照合する（`secret-verify.ps1`）
+
+```powershell
+secret-verify.ps1 api-key/openai/general C:\path\to\original.txt
+secret-verify.ps1 api-key/openai/general C:\path\to\original.txt firstline
+```
+
+「一致」「不一致」だけを出します。**値もハッシュ値も出しません。** 金庫にも触れません。
+
+Mac 版にある `rtf` モードはありません（`textutil` 相当が無いため）。
+また Mac 版がファイルをバイト列として扱うのに対し、こちらは UTF-8 テキストとして読むので、
+**BOM 付きのファイルでは結果が食い違うこと**があります。厳密に見るときは Mac 側で照合してください。
+
 ### `--` の書き方（Windows 固有）
 
 PowerShell のパーサは素の `--` を「パラメータ終端」トークンとみなし、
@@ -261,3 +292,26 @@ $LASTEXITCODE   # 42 になるはず
 - `.txt` でデスクトップに置く
 - `cache\*.dat` を git に入れる（DPAPI暗号化済みだが、そもそも同期する意味がない。
   別PCでは復号できません。**移行は必ず Bitwarden 経由で行ってください**）
+- **`bw` を自前で解錠・施錠するスクリプトと併用する**（次項）
+
+## 併用してはいけないもの: `bw` を直接叩く別スクリプト
+
+このツール群のコマンドは、**終了時にかならず `bw lock` します**
+（`_secret-common.ps1` の `Close-BwSession`）。例外はありません。
+
+そのため、`bw unlock` のセッショントークンを自前で保存して使い回すスクリプトと併用すると、
+**こちらのコマンドを1回実行しただけで、相手のセッションが無効になります。**
+逆に相手が `bw lock` すると、こちらの実行中のセッションが壊れます。
+`bw` は単一の状態ファイル（`%AppData%\Bitwarden CLI\data.json`）を共有していて、
+**壊れても bw はエラーを返さず空の結果を終了コード 0 で返す**ため（冒頭の「落とし穴」と同じ問題）、
+症状は「金庫が空に見える」という形で出ます。原因にたどり着きにくい壊れ方です。
+
+併用したい場合は、相手側を次のどちらかに合わせてください。
+
+1. `secrets-run.ps1` 経由で値を受け取る形に変える（推奨。セッションを持ち回らなくて済む）
+2. 最低限、`Lock-BwCli` と同じ名前付き Mutex（`Local\secrets-toolkit-bw`）を取ってから
+   `bw` を呼び、セッショントークンを**永続化しない**
+
+なお、セッショントークンをユーザー環境変数（`HKCU\Environment`）に置くのは避けてください。
+再起動しても残り、同一ユーザーの全プロセスから読め、全子プロセスに継承されます。
+このツール群が DPAPI 暗号化・コマンドごとの開閉・終了時ロックにしているのは、これを避けるためです。

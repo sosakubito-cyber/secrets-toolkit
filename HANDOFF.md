@@ -239,19 +239,21 @@ APIキー単体では金庫を復号できない**（E2E暗号化）ので緊急
 `pop-economics-grading` / `AI面接用アプリ` / `saiten-assistant` の `.env` が
 **平文のまま iCloud にある**。ルールに従い中身は読んでいない。指示があれば同じ方式で移送する。
 
-### 5-5. Windows は残り5本が未移植（`secret-push-bw` は検証済み）
+### 5-5. Windows は残り2本が未移植。3本は**実機未検証**
 **目標は「Windows でも Mac と同等以上に使える、同期された環境」**（2026-08-14 に本人確認）。
-Mac 11本 / **Windows 6本**。`secret-put`（`d528520`）に続き `secret-push-bw` を移植した。
-これで **登録 → 金庫へ保存が Windows だけで完結する**（配布のみ Mac 側）。
+Mac 11本 / **Windows 9本**。日々の運用は Windows だけで完結する。
 
-| Windows にある | 未移植（Mac のみ） |
-|---|---|
-| `secret-bootstrap` 初期設定 | `secret-pull` 金庫から個別取得 |
-| `secret-sync` 金庫→ローカル | `secret-verify` 原本照合 |
-| `secret-check` 確認 | `secret-list-remote` 金庫の一覧 |
-| `secret-put` 新規登録（ローカル） | `secret-rotate-bw` 鍵入替 |
-| `secret-push-bw` 金庫へ保存 | `secret-push` Cloudflare / GHA へ配布 |
-| `secrets-run` 実行時に注入 | |
+未移植は **`secret-rotate-bw`**（Bitwarden APIキーの入れ替え・失敗時に自動巻き戻し）と
+**`secret-push`**（Cloudflare Workers / GitHub Actions へ配布）の2本のみ。
+どちらも頻度が低く、失敗したときの影響が大きい。**移植するなら Mac 版で1回通してから。**
+
+★ **`secret-pull.ps1` / `secret-verify.ps1` / `secret-list-remote.ps1` は Windows で未実行。**
+macOS に pwsh が無く構文検査もできないため、最初の実行が最初の検証になる（§3-9）。確認すべき点:
+
+1. `secret-list-remote.ps1` — まずこれ。**読み取りだけなので一番安全**。項目数が26と出るか
+2. `secret-pull.ps1 <名前> <同じ名前>` — 既存の1件で。「更新」と出て読み戻し照合が通るか
+3. `secret-pull.ps1 ... --notes` — 複数行の値で。`Invoke-Bw get item` の JSON 解釈が要
+4. `secret-verify.ps1` — 金庫に触れないので単体で試せる。原本が手元にある1件で
 
 `secret-push-bw.ps1` は Windows で**書き込み経路まで実証済み**（`221c20a`）。合成値を1件登録して
 ハッシュ一致を確認し、そのあと消して金庫を元の26件に戻している。1行→ログイン項目、
@@ -291,6 +293,8 @@ Mutex を通らない解錠・施錠は相互に壊し合う。併用すれば�
 
 → 選択肢は「`secrets-run.ps1` を使う形に寄せる」か「最低限 Mutex とセッションの持ち方を合わせる」。
    **どちらもそのプロジェクト側の変更なので、着手前に持ち主の判断が要る。**
+→ 当面の手当てとして、`windows/SETUP.md` に「併用してはいけないもの」の節を書いた
+   （症状が「金庫が空に見える」という形で出るため、知らないと原因にたどり着けない）。
 
 ### 5-7. その他
 - `api-token/unverified/saiten-assistant-gcp` は名前と中身の形状が食い違う
