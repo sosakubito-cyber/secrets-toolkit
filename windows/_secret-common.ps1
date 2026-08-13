@@ -49,6 +49,15 @@ function Get-CachedSecret([string]$Name) {
 
 function Test-CachedSecret([string]$Name) { Test-Path (Get-SecretPathFor $Name) }
 
+function Get-SecretHash([string]$Text) {
+  # 値そのものを出さずに一致を確かめるための照合用。表示してよいのは一致/不一致だけ。
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    ($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Text)) |
+      ForEach-Object { $_.ToString('x2') }) -join ''
+  } finally { $sha.Dispose() }
+}
+
 function Get-NameFromCacheFile([string]$BaseName) {
   # Get-SecretPathFor の逆変換。区切りに使った __ を / に戻す。
   $BaseName -replace '__', '/'

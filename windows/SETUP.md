@@ -62,13 +62,16 @@ bw --version
 
 ## 手順2. スクリプトを配置する
 
-`windows\` フォルダの5ファイルを `%USERPROFILE%\.local\bin\` に置きます。
+`windows\` フォルダの6ファイルを `%USERPROFILE%\.local\bin\` に置きます。
 
 - `_secret-common.ps1`（共通処理・単体実行しない）
 - `secret-bootstrap.ps1`
 - `secret-sync.ps1`
 - `secrets-run.ps1`
 - `secret-check.ps1`
+- `secret-put.ps1`
+
+`.ps1` は **UTF-8 BOM 付きのまま**コピーしてください（理由は冒頭の落とし穴1）。
 
 PATH に追加：
 
@@ -153,6 +156,22 @@ secret-check.ps1           # 結果確認（値は出ない）
 secrets-run.ps1 answer-prompter -- npm test
 secrets-run.ps1 -- python scripts/grade.py    # .secrets-profile を自動検出
 ```
+
+### 手元の値を登録する（`secret-put.ps1`）
+
+```powershell
+Get-Content sa.json -Raw | secret-put.ps1 service-account/gcp/speech
+```
+
+**値は必ず標準入力から渡します。** 引数に書くと平文がコマンド履歴に残ります。
+登録後に読み戻してハッシュで照合し、文字数と結果だけを表示します（値は出ません）。
+
+Mac 版と違い base64 格納はしません。macOS の `security(1)` は改行入りの値を16進で
+返すため往復が壊れますが、DPAPI は改行・CRLF・UTF-8 をそのまま往復できます。
+
+`secret-put.ps1` が書くのは**ローカルのキャッシュだけ**です。正本は Bitwarden なので、
+別マシンでも使う値は Web 金庫にも同名で登録してください
+（`secret-push-bw` は Windows 未移植）。
 
 ### `--` の書き方（Windows 固有）
 
