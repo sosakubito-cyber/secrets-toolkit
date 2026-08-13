@@ -1,0 +1,8 @@
+# listening-quiz-factory — 秘密は含まない（金庫/キャッシュ上の「名前」だけ）
+# 使い方: secrets-run.ps1 listening-quiz-factory -- python -m pipeline.run ...
+#
+# 金庫に未登録のため、まだ書けないもの:
+#   MINIMAX_API_KEY / MINIMAX_GROUP_ID  (TTS・音楽・H3 のフォールバック)
+#   HF_TOKEN                            (Hugging Face)
+# 登録したら secret-put.ps1 → secret-push-bw.ps1 の順で入れて、ここに1行足す。
+ELEVENLABS_API_KEY=api-key/elevenlabs/listening-quiz-factory
