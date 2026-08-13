@@ -82,21 +82,27 @@ try {
     throw "bw sync に失敗しました。ネットワークとログイン状態を確認してください"
   }
 
-  # --- フォルダを用意 ---
+  # --- フォルダの解決（作成は遅延させる）---
   # 空応答を「フォルダが無い」と解釈すると、既存フォルダを重複作成する。Get-BwFolders が弾く。
+  # 作成をループ前に行うと、全件が拒否・スキップされた実行でも空のフォルダだけが
+  # 金庫に残る。実際に1件目を登録する直前まで作らない。
   $folders  = @(Get-BwFolders)
   $folderId = @($folders | Where-Object { $_.name -eq $FolderName } | ForEach-Object { $_.id })[0]
-  if ([string]::IsNullOrWhiteSpace($folderId)) {
-    $enc = ConvertTo-BwEncoded (@{ name = $FolderName } | ConvertTo-Json -Compress)
-    $r   = Invoke-BwStdin -InputText $enc -BwArgs @('create', 'folder', '--session', $session)
-    $folderId = if ($r.ExitCode -eq 0 -and $r.Output) {
+
+  function Resolve-FolderId {
+    if (-not [string]::IsNullOrWhiteSpace($script:folderId)) { return $script:folderId }
+    $enc = ConvertTo-BwEncoded (@{ name = $script:FolderName } | ConvertTo-Json -Compress)
+    $r   = Invoke-BwStdin -InputText $enc -BwArgs @('create', 'folder', '--session', $script:session)
+    $id  = if ($r.ExitCode -eq 0 -and $r.Output) {
       try { ($r.Output | ConvertFrom-Json).id } catch { $null }
     } else { $null }
     # 作成に失敗したまま進むと、全項目が不正な folderId を持って登録に失敗する
-    if ([string]::IsNullOrWhiteSpace($folderId)) {
-      throw "フォルダ '$FolderName' を作成できませんでした"
+    if ([string]::IsNullOrWhiteSpace($id)) {
+      throw "フォルダ '$($script:FolderName)' を作成できませんでした"
     }
-    Write-Host "フォルダ '$FolderName' を作成しました"
+    Write-Host "フォルダ '$($script:FolderName)' を作成しました"
+    $script:folderId = $id
+    $id
   }
 
   # --- 金庫に既にある項目名（空応答を「まだ何も無い」と誤解しないよう Get-BwItems 経由） ---
@@ -126,13 +132,15 @@ try {
     }
 
     try {
+      # ここで初めてフォルダを用意する（登録するものが確定してから）
+      $fid = Resolve-FolderId
       if ($value.Contains("`n")) {
         $obj  = @{ type = 2; name = $n; notes = $value; favorite = $false
-                   folderId = $folderId; secureNote = @{ type = 0 } }
+                   folderId = $fid; secureNote = @{ type = 0 } }
         $kind = 'セキュアメモ'
       } else {
         $obj  = @{ type = 1; name = $n; notes = $null; favorite = $false
-                   folderId = $folderId
+                   folderId = $fid
                    login = @{ username = (Get-ItemLabel $n); password = $value; totp = $null } }
         $kind = 'ログイン'
       }
@@ -153,7 +161,8 @@ try {
   }
 
   Write-Host "`n登録 $added 件 / スキップ $skipped 件 / 失敗 $failed 件"
-  if ($failed -gt 0) { exit 1 }
-  exit 0   # 明示しないと呼び出し側の $LASTEXITCODE に直前の値が残る
+  if ($failed -gt 0) { $exitCode = 1 }
 }
 finally { Close-BwSession }
+
+exit $exitCode   # 明示しないと呼び出し側の $LASTEXITCODE に直前の値が残る
