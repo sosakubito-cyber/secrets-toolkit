@@ -60,10 +60,11 @@ Bitwarden の金庫はプロジェクト単位のフォルダで整理する（�
 `windows/SETUP.md` を参照。Windows 11 / Windows PowerShell 5.1 (ja-JP) /
 Bitwarden CLI 2026.7.0 で、実データを通した往復まで検証済み。
 
-**Windows 版は5本（Mac は11本）。** `secret-bootstrap` / `secret-sync` / `secret-check` /
-`secret-put` / `secrets-run` があり、`secret-pull` / `secret-push-bw` / `secret-verify` /
+**Windows 版は6本（Mac は11本）。** `secret-bootstrap` / `secret-sync` / `secret-check` /
+`secret-put` / `secret-push-bw` / `secrets-run` があり、`secret-pull` / `secret-verify` /
 `secret-list-remote` / `secret-rotate-bw` / `secret-push` は未移植。
-金庫への保存と配布は Mac 側で行う。
+**登録から金庫への保存までは Windows だけで完結する。** 配布（Cloudflare / GitHub Actions）は
+Mac 側で行う。
 
 ## 日常の使い方
 

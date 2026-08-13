@@ -76,5 +76,5 @@ if ($null -eq $back -or (Get-SecretHash $back) -ne (Get-SecretHash $value)) {
 
 $what = if ($existed) { "更新" } else { "登録" }
 Write-Host "  ok  $Name  ($($value.Length) 文字を$what / 読み戻し照合 OK)" -ForegroundColor Green
-Write-Host "  金庫にも入れる場合は Bitwarden 側に同名で登録してください（Windows には secret-push-bw が未移植）"
+Write-Host "  これはローカルだけです。金庫（正本）へ入れるには: secret-push-bw.ps1 --folder <プロジェクト> $Name"
 exit 0   # 明示しないと呼び出し側の $LASTEXITCODE に直前の値が残る

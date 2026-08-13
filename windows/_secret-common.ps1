@@ -97,6 +97,41 @@ function Invoke-Bw {
   } finally { $ErrorActionPreference = $prev }
 }
 
+function Invoke-BwStdin {
+  # 標準入力を渡す版の Invoke-Bw。`bw create item` は encode 済み JSON を
+  # 標準入力からも受け取る。引数で渡すと**秘密がコマンドラインに載る**
+  # （同一ユーザーの他プロセスから見え、PowerShell の transcript にも残る）ため、
+  # 値を含むものは必ずこちらを使う。
+  #
+  #   $InputText に渡すのは base64（ASCII のみ）に限ること。PS 5.1 の $OutputEncoding
+  #   は既定が ASCII で、native コマンドへのパイプはこれで符号化される。非 ASCII を
+  #   直接流すと文字化けする。JSON の UTF-8 符号化は呼び出し側が
+  #   [Text.Encoding]::UTF8.GetBytes → ToBase64String で確定させる。
+  param(
+    [Parameter(Mandatory = $true)][string]$InputText,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$BwArgs
+  )
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $merged = $InputText | & bw @BwArgs 2>&1
+    $code   = $LASTEXITCODE
+    $stdout = @($merged |
+      Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
+      ForEach-Object { [string]$_ })
+    [pscustomobject]@{
+      ExitCode = $code
+      Output   = ($stdout -join "`n").Trim()
+    }
+  } finally { $ErrorActionPreference = $prev }
+}
+
+function ConvertTo-BwEncoded([string]$Json) {
+  # `bw encode` と同じ base64 化を PowerShell 側で行う。外部プロセスに平文を
+  # 渡す回数を1回減らせるうえ、UTF-8 のバイト列を自分で確定できる。
+  [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Json))
+}
+
 # --- bw の排他制御 -----------------------------------------------------------
 #   bw CLI は単一の状態ファイル（%AppData%\Bitwarden CLI\data.json）を共有する。
 #   複数のセッションが同時に bw を使うと、後発の `bw lock` が先行セッションの鍵を
@@ -192,6 +227,32 @@ function Get-BwItems {
   # ここで `,@($items)` としてはいけない。呼び出し側は @(Get-BwItems) で受けるため、
   # 外側の1要素配列が展開されて「常に1件」になる。
   @($items)
+}
+
+function Get-BwFolders {
+  # フォルダ一覧。項目と同じ理由で、空応答を「フォルダが1つも無い」と解釈させない。
+  # 空に化けたまま進むと、既にあるフォルダをもう一度作ってしまう。
+  if (-not $script:BwSession) { throw "セッションが開かれていません" }
+  $r = Invoke-Bw list folders --session $script:BwSession
+  if ($r.ExitCode -ne 0) { throw "金庫のフォルダ一覧を取得できませんでした（bw が終了コード $($r.ExitCode) を返しました）" }
+  $raw = $r.Output
+  if ([string]::IsNullOrWhiteSpace($raw)) {
+    throw "金庫のフォルダ一覧を取得できませんでした（空の応答）。他のセッションが bw を操作した可能性があります"
+  }
+  if ($raw -eq '[]') { return @() }
+  try { $folders = $raw | ConvertFrom-Json } catch {
+    throw "金庫のフォルダ一覧を取得できませんでした（JSON として解釈できません）"
+  }
+  if ($null -eq $folders) { throw "金庫のフォルダ一覧を取得できませんでした（配列が返りませんでした）" }
+  @($folders)
+}
+
+function Get-CachedSecretNames {
+  # ローカルキャッシュに入っている秘密の名前一覧（値は読まない）。
+  # Mac 版の registry.txt に相当する。Windows は .dat の存在そのものが台帳。
+  if (-not (Test-Path $script:CacheDir)) { return @() }
+  @(Get-ChildItem $script:CacheDir -Filter *.dat |
+    ForEach-Object { Get-NameFromCacheFile $_.BaseName } | Sort-Object)
 }
 
 function Close-BwSession {

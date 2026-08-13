@@ -170,6 +170,16 @@ Windows 側で「`bw` の stderr は `$ErrorActionPreference='Stop'` でも例�
 → 動作確認は**実コードと同じ呼び方**で行う。呼び出し形が1つでも違うなら、それは別物。
 → 同じ理由で、対策は1箇所に集約する方が安全（`Invoke-Bw` ラッパー、生の呼び出しゼロ）。
 
+### 3-10. 設計判断が1つのスクリプトにしか実装されていなかった（2026-08-14）
+§2-2「`bundle/bitwarden/*` は金庫へ push しない」は `secret-sync` の【2】には実装されていたが、
+**実際に書き込む `secret-push-bw` には無かった**。`registry.txt` の19行目に
+`bundle/bitwarden/api-credentials` があるため、**引数なしで `secret-push-bw` を実行すると
+マスターパスワードを含む項目が金庫へ入る**。まだ発火していない（金庫に無いことを確認済み）。
+→ 禁止規則は「報告する側」ではなく「**書き込む側**」に置く。
+→ `secret-push-bw` は名指しされても拒否するようにした。
+   `service-account/app-store-connect/*` は既定でスキップ・名指しなら通す（正本は bundle 側）。
+→ Windows 版 `secret-push-bw.ps1` は最初から同じ規則を実装している。
+
 ---
 
 ## 4. 環境の制約（時間を溶かさないために）
@@ -217,20 +227,29 @@ APIキー単体では金庫を復号できない**（E2E暗号化）ので緊急
 `pop-economics-grading` / `AI面接用アプリ` / `saiten-assistant` の `.env` が
 **平文のまま iCloud にある**。ルールに従い中身は読んでいない。指示があれば同じ方式で移送する。
 
-### 5-5. Windows は残り6本が未移植 ★方針が要る
+### 5-5. Windows は残り5本が未移植。`secret-push-bw.ps1` は**実機未検証** ★次はここ
 **目標は「Windows でも Mac と同等以上に使える、同期された環境」**（2026-08-14 に本人確認）。
-Mac 11本 / **Windows 5本**（`d528520` で `secret-put` が入った）。
+Mac 11本 / **Windows 6本**。`secret-put`（`d528520`）に続き `secret-push-bw` を移植した。
+これで **登録 → 金庫へ保存が Windows だけで完結する**（配布のみ Mac 側）。
 
 | Windows にある | 未移植（Mac のみ） |
 |---|---|
-| `secret-bootstrap` 初期設定 | `secret-push-bw` 金庫へ保存 |
-| `secret-sync` 金庫→ローカル | `secret-pull` 金庫から個別取得 |
-| `secret-check` 確認 | `secret-verify` 原本照合 |
-| `secret-put` 新規登録（ローカル） | `secret-list-remote` 金庫の一覧 |
-| `secrets-run` 実行時に注入 | `secret-rotate-bw` 鍵入替 / `secret-push` CF・GHA へ配布 |
+| `secret-bootstrap` 初期設定 | `secret-pull` 金庫から個別取得 |
+| `secret-sync` 金庫→ローカル | `secret-verify` 原本照合 |
+| `secret-check` 確認 | `secret-list-remote` 金庫の一覧 |
+| `secret-put` 新規登録（ローカル） | `secret-rotate-bw` 鍵入替 |
+| `secret-push-bw` 金庫へ保存 | `secret-push` Cloudflare / GHA へ配布 |
+| `secrets-run` 実行時に注入 | |
 
-**Windows でローカルに登録はできるが、金庫へ戻す経路がまだ無い**（`secret-push-bw` 未移植）。
-Windows だけで登録した秘密は**そのPCにしか存在しない**状態になる。→ 次に移植するならここ。
+★ **`secret-push-bw.ps1` は Windows で一度も動かしていない。** macOS に pwsh が無く構文検査すら
+できないため、**最初の実行が最初の検証**になる。§3-9 の通り、実コードと同じ呼び方で確かめること。
+確認すべき点:
+
+1. `--folder <名前>` の引数解釈（PowerShell の引数処理は Mac と別物。§1-5 の `--` の件）
+2. `Invoke-BwStdin` で標準入力が実際に `bw` へ渡るか（**新規に足した関数**）。
+   base64 は ASCII なので `$OutputEncoding` の既定が ASCII でも壊れないはず、という前提で書いた
+3. 複数行の値がセキュアメモとして正しく往復するか（`secret-pull` が無いので Mac 側で照合する）
+4. `bundle/bitwarden/*` を名指しして**拒否されること**
 
 同じ Windows 側で残っている細かい差:
 
@@ -248,6 +267,11 @@ Windows だけで登録した秘密は**そのPCにしか存在しない**状態
 - `api-token/cloudflare/saiten-mirror-readonly` は形状からの推定で Cloudflare と判断。**要確認**
 - `shibehasu-site.map` が参照する `api-token/cloudflare/shibehasu-site` は**未発行**
 - GitHub リカバリコードは金庫に入ったが、**紙の控えも1部**持っておくのが望ましい
+- `api-key/elevenlabs/listening-quiz-factory`（2026-08-14 追加、登録28件目）。
+  金庫・キーチェーンとも整備済み（フォルダ `listening-quiz-factory`）だが、
+  **`.map` がまだ無いので `secrets-run` からは使えない。** プロジェクト実体も未作成。
+  着手時に `maps/listening-quiz-factory.map` を作る:
+  `ELEVENLABS_API_KEY=api-key/elevenlabs/listening-quiz-factory`（変数名はコード側に合わせる）
 
 ---
 

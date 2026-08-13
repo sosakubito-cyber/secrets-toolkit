@@ -73,6 +73,7 @@ bw --version
 - `secrets-run.ps1`
 - `secret-check.ps1`
 - `secret-put.ps1`
+- `secret-push-bw.ps1`
 
 `.ps1` は **UTF-8 BOM 付きのまま**コピーしてください（理由は冒頭の落とし穴1）。
 
@@ -196,8 +197,25 @@ Mac 版と違い base64 格納はしません。macOS の `security(1)` は改�
 返すため往復が壊れますが、DPAPI は改行・CRLF・UTF-8 をそのまま往復できます。
 
 `secret-put.ps1` が書くのは**ローカルのキャッシュだけ**です。正本は Bitwarden なので、
-別マシンでも使う値は Web 金庫にも同名で登録してください
-（`secret-push-bw` は Windows 未移植）。
+別マシンでも使う値は続けて金庫へ入れてください（次項）。
+
+### 金庫へ保存する（`secret-push-bw.ps1`）
+
+```powershell
+secret-push-bw.ps1 --folder listening-quiz-factory api-key/elevenlabs/listening-quiz-factory
+secret-push-bw.ps1                                  # 引数なしならローカル全件
+```
+
+**`secret-put.ps1` だけで終えると、その値はその PC にしか存在しません。**
+Bitwarden が正本という前提（README「設計上の約束」）から外れるので、必ず続けて実行してください。
+
+- 同名の項目が金庫に既にある場合は**上書きせずスキップ**します
+- 1行の値は「ログイン」項目、複数行の値は「セキュアメモ」項目になります（Mac 版と同じ）
+- フォルダ名は `secrets-run` のプロファイル名に合わせます。未定なら `_unassigned`
+- **`bundle/bitwarden/*` は名指ししても拒否します。** 金庫を開ける鍵を金庫に入れると
+  循環依存になり、マスターパスワードが「開けたい金庫の中」に入ってしまうためです
+- 値は `bw` の**標準入力**へ渡します。引数に載せると同一ユーザーの他プロセスから
+  コマンドラインが見え、PowerShell の transcript にも残るためです
 
 ### `--` の書き方（Windows 固有）
 
