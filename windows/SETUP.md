@@ -65,7 +65,7 @@ bw --version
 
 ## 手順2. スクリプトを配置する
 
-`windows\` フォルダの6ファイルを `%USERPROFILE%\.local\bin\` に置きます。
+`windows\` フォルダの10ファイルを `%USERPROFILE%\.local\bin\` に置きます。
 
 - `_secret-common.ps1`（共通処理・単体実行しない）
 - `secret-bootstrap.ps1`
