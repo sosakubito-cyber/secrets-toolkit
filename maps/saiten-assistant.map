@@ -1,4 +1,11 @@
-# saiten-assistant（Vertex は ADC を使うため GCP キーは載せない）
+# saiten-assistant
+# 本体の転写・採点は Vertex を ADC 経由で使うので、そちらに API キーは要らない。
+# 以下は scripts/transcription-comparison.ts など、比較・評価スクリプトが直接叩く分。
 OPENAI_API_KEY=api-key/openai/saiten-assistant
 REPRO_PASSCODE=app-password/saiten-assistant/staging
 OPENROUTER_API_KEY=api-key/openrouter/saiten-assistant
+ANTHROPIC_API_KEY=api-key/anthropic/test-scoring
+# Gemini と Vision は同一の Google API キー。.env の2変数が同じ値だったことを
+# ハッシュ照合で確認済み（2026-08-14）。旧名 api-token/unverified/saiten-assistant-gcp。
+GEMINI_API_KEY=api-key/google/saiten-assistant
+GOOGLE_VISION_API_KEY=api-key/google/saiten-assistant

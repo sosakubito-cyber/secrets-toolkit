@@ -1,0 +1,4 @@
+# AI面接用アプリ（~/Documents/AI面接用アプリ、server.js）
+# .env にあった OPENAI_API_KEY は api-key/openai/general と同一だった
+# （ハッシュ照合で確認・2026-08-14）。新しい鍵は増やさず既存を指している。
+OPENAI_API_KEY=api-key/openai/general

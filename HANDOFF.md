@@ -1,7 +1,8 @@
 # HANDOFF — 秘密情報の集約と、その周辺で見つかった欠陥
 
-最終更新: 2026-08-14（本体は 2026-08-09 の記録。§1-5 / §1-6 / §2-6 / §3-7〜3-9 / §5 を後から追記・訂正。
-Windows の実機検証が済んだため、旧 §5-3「Windows 版の検証」は §1-6 へ移して §5 を採番し直した）
+最終更新: 2026-08-14（本体は 2026-08-09 の記録。§1-5〜1-7 / §2-6 / §3-7〜3-12 / §5 は後から追記・訂正。
+片付いた項目は §5 から §1 へ移し、そのつど §5 を採番し直しているので、
+古いメモの「§5-◯」は当てにしないこと）
 このファイルだけ読めば作業を再開できるように書いてある。
 **秘密の値は一切書かない。出てくるのは「名前」だけ。**
 
@@ -12,7 +13,7 @@ Windows の実機検証が済んだため、旧 §5-3「Windows 版の検証」�
 デスクトップに散っていた平文の資格情報26件を **Bitwarden（正本）+ macOS キーチェーン（実行時）**
 へ集約し、その過程で **4つの実害あるバグ**を見つけて直した
 （その後さらに、Windows 実機で6件 §1-5/§1-6、見張り役の付け忘れで3件 §3-8）。
-**Mac / Windows とも実データで動作確認済み。** 未処理が7件（§5）。
+**Mac / Windows とも実データで動作確認済み。平文の `.env` も片付いた。** 未処理が5件（§5）。
 
 ---
 
@@ -82,7 +83,7 @@ Mac 版のような PID 生存確認つきロックディレクトリは要ら�
 
 - `secret-sync.ps1` — **25件取り込み**、命名規則違反0、金庫に無い項目0
 - `secret-check.ps1` — **11/12 OK**。唯一の MISS は `shibehasu-site` で、
-  map 自身に「未発行」と書かれている既知分（§5-6）。バグではない
+  map 自身に「未発行」と書かれている既知分（§5-5）。バグではない
 - `secrets-run.ps1` — **6プロファイル全て動作**。終了コードは `exit 42` → 42 / `exit 0` → 0
 - **`@file:` の実データ検証**: `GOOGLE_APPLICATION_CREDENTIALS` が
   2404 bytes / BOM なし / JSON パース可 / node からも読める。
@@ -93,6 +94,28 @@ Mac 版のような PID 生存確認つきロックディレクトリは要ら�
 `$ErrorActionPreference='Stop'` の下で例外に化け、bootstrap が起動できなかった。**
 → 全ての `bw` 呼び出しを共通ラッパー `Invoke-Bw` に集約し、生の呼び出しをゼロにした。
 発見の経緯は §3-9。
+
+### 1-7. `~/Documents` の `.env` を移送した（2026-08-14）
+**新しい秘密は1つも増えなかった。** `.env` の5件すべてが既存の登録と同じ値だった
+（値もハッシュも表示せず、`secret-verify` で照合）。
+
+| `.env` | 変数 | 照合結果 |
+|---|---|---|
+| `AI面接用アプリ` | `OPENAI_API_KEY` | `api-key/openai/general` と同一 |
+| `saiten-assistant` | `OPENAI_API_KEY` | `api-key/openai/saiten-assistant` と同一 |
+| | `ANTHROPIC_API_KEY` | `api-key/anthropic/test-scoring` と同一 |
+| | `GEMINI_API_KEY` / `GOOGLE_VISION_API_KEY` | **2つとも同じ値**。`api-key/google/saiten-assistant`（旧 `api-token/unverified/...`）と同一 |
+
+- `maps/ai-interview.map` を新設、`maps/saiten-assistant.map` に3変数を追加
+  （本体の Vertex 経路は ADC なので鍵不要。追加分は `scripts/transcription-comparison.ts` が
+  直接叩くためのもの。参照があることを grep で確認済み）
+- 両プロジェクトに `.secrets-profile` を置いた → `secrets-run -- <コマンド>` でプロファイル名を省略できる
+- **`.env` の値と `secrets-run` が注入する値が一致することを、退避の前に5件とも確認**してから移動した
+- `.env` は `~/.secrets-archive/env/` へ退避（**削除していない**）。台帳は同ディレクトリの `moved_log.csv`
+
+**`pop-economics-grading/.env` は移送していない。** 中身は `VERTEX_PROJECT` / `VERTEX_LOCATION` /
+`TRANSCRIBE_MODEL` / `GRADE_MODEL` の4つで、**資格情報が1つも入っていない**（Vertex は ADC を使う）。
+金庫に入れる対象ではないので、そのまま残してある。
 
 ---
 
@@ -246,11 +269,7 @@ PR #1 の看板は「『この試験、進めて』で一続きに進む」だ�
 APIキー単体では金庫を復号できない**（E2E暗号化）ので緊急ではない。
 再発行は Web 金庫のみ（`bw` CLI に該当コマンドが無い）。その後 `secret-rotate-bw` で反映。
 
-### 5-4. `~/Documents` の `.env` 3件
-`pop-economics-grading` / `AI面接用アプリ` / `saiten-assistant` の `.env` が
-**平文のまま iCloud にある**。ルールに従い中身は読んでいない。指示があれば同じ方式で移送する。
-
-### 5-5. Windows は残り2本が未移植。3本は**実機未検証**
+### 5-4. Windows は残り2本が未移植
 **目標は「Windows でも Mac と同等以上に使える、同期された環境」**（2026-08-14 に本人確認）。
 Mac 11本 / **Windows 9本**。日々の運用は Windows だけで完結する。
 
@@ -263,8 +282,8 @@ Mac 11本 / **Windows 9本**。日々の運用は Windows だけで完結する�
 「取り込んだ値が `secret-sync` の結果とハッシュ一致するか」で確かめた** — 値を出さずに
 往復を検証できる筋の良い方法なので、今後もこの形を使う。
 
-★ ただし `secret-verify.ps1` は**その後こちらで作り直した**ので、Windows で再検証が要る。
-原本をテキストではなく**バイト列**で読むようにした（下記）。9ケースの再実行をお願いする。
+`secret-verify.ps1` はその後バイト列読みに作り直した（§3-11）が、**Windows で再検証済み**
+（`d87419b`・8ケース通過。両端の空白除去を node の独立実装とも突き合わせている）。
 
 `secret-push-bw.ps1` は Windows で**書き込み経路まで実証済み**（`221c20a`）。合成値を1件登録して
 ハッシュ一致を確認し、そのあと消して金庫を元の26件に戻している。1行→ログイン項目、
@@ -286,33 +305,21 @@ ASCII を強制して測り直すこと。§3-9 と同じ「測り方が実環�
 - キャッシュの `.dat` は DPAPI 暗号化済みで他ユーザーは復号できないが、
   フォルダの ACL は既定（SYSTEM / Administrators / 本人）。本人限定に絞る余地はある
 
-### 5-6. 別プロジェクトの `bw_session.ps1` が本ツール群と壊し合う ★要判断
-Windows 側の別プロジェクトに `bw_session.ps1` がある（**Mac には存在しないので未確認**。
-以下は Windows セッションの報告と、こちらのコードから確認できる範囲）。
-
-こちらのコードから**確実に言えること**: `_secret-common.ps1` / `_bw-common.sh` の
-`Close-BwSession` / `bw_session_close` は**終了時にかならず `bw lock` する**。
-したがって **secrets-toolkit のコマンドを1回でも実行すると、外部に保存された
-`BW_SESSION` は無効になる。** `bw` が単一の `data.json` を共有する以上（§3-2）、
-Mutex を通らない解錠・施錠は相互に壊し合う。併用すれば高確率で踏む。
-
-報告されている、こちらでは未確認の点:
-
-- セッショントークンを **`HKCU\Environment`（永続化されるユーザー環境変数）に平文で**置いている。
-  再起動しても残り、同一ユーザーの全プロセスから読め、全子プロセスに継承される
-- Mutex を通らずに `bw unlock` / `bw lock` を直接呼んでいる
-
-→ 選択肢は「`secrets-run.ps1` を使う形に寄せる」か「最低限 Mutex とセッションの持ち方を合わせる」。
-   **どちらもそのプロジェクト側の変更なので、着手前に持ち主の判断が要る。**
-→ 当面の手当てとして、`windows/SETUP.md` に「併用してはいけないもの」の節を書いた
-   （症状が「金庫が空に見える」という形で出るため、知らないと原因にたどり着けない）。
-
-### 5-7. その他
-- `api-token/unverified/saiten-assistant-gcp` は名前と中身の形状が食い違う
-  （53文字・Cloudflareトークンと同形。GCPキーの形式ではない）。**要確認**
+### 5-5. その他
+- **`api-token/unverified/saiten-assistant-gcp` の正体は判明した**（2026-08-14）。
+  saiten-assistant の `.env` の `GEMINI_API_KEY` と `GOOGLE_VISION_API_KEY` が**同一の値**で、
+  どちらもこの項目と一致した。→ `api-key/google/saiten-assistant` へ改名済み（金庫・キーチェーンとも）。
+  **旧名のキーチェーン項目が孤児として残っている**（`secret-sync`【2】に毎回出る）。
+  値は新名で金庫にもキーチェーンにもあるので、消してよい。削除は破壊的なので未実施。
 - `api-token/cloudflare/saiten-mirror-readonly` は形状からの推定で Cloudflare と判断。**要確認**
-- `shibehasu-site.map` が参照する `api-token/cloudflare/shibehasu-site` は**未発行**
+- `shibehasu-site.map` が参照する `api-token/cloudflare/shibehasu-site` は**未発行**。
+  `secret-check` の唯一の MISS はこれ。発行は Cloudflare のダッシュボードでしかできない
 - GitHub リカバリコードは金庫に入ったが、**紙の控えも1部**持っておくのが望ましい
+- `bw_session.ps1`（別プロジェクト）は **`secrets-run.ps1` を使う経路に置き換わり、不要になった**
+  （`b11852a` で `maps/listening-quiz-factory.map` を作成・検証済み）。ファイル自体は残っているので、
+  誰かが実行すれば §3-2 の衝突は起きうる。`windows/SETUP.md`「併用してはいけないもの」を参照。
+  なお `MINIMAX_API_KEY` / `MINIMAX_GROUP_ID` / `HF_TOKEN` はパイプラインが参照しているが
+  **金庫に未登録**のため map に載せていない
 - `api-key/elevenlabs/listening-quiz-factory`（2026-08-14 追加、登録28件目）。
   金庫・キーチェーンとも整備済み（フォルダ `listening-quiz-factory`）だが、
   **`.map` がまだ無いので `secrets-run` からは使えない。** プロジェクト実体も未作成。
