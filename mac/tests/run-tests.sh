@@ -314,7 +314,25 @@ kind="$(openssl base64 -d -A < "$SB/bw/created-items.b64" 2>/dev/null | jq -r '.
 check "複数行の値はセキュアメモ(type=2)になる" "2" "$kind"
 
 echo
-echo "== H. secret-sync の集計行 =="
+echo "== H. secret-check が .map を検査する（自己成就の防止・§3-15） =="
+
+# 台帳にあるものだけを見る検査は「登録に成功した名前」を確かめるだけなので必ず通る。
+# 実行時に本当に要るのは .map が参照する名前の方。
+printf 'GHOST=api-key/test/never-registered\n' > "$SB/home/.config/secrets/ghost.map"
+out="$(run secret-check 2>&1)"; rc=$?
+check "参照先が無い .map があれば終了コード 1" "1" "$rc"
+case "$out" in *api-key/test/never-registered*) ok ".map の参照先を名指しする" ;;
+               *) ng ".map の参照先を名指しする" "出力に名前が無い" ;; esac
+case "$out" in *ghost.map*) ok "どの .map が原因かを示す" ;;
+               *) ng "どの .map が原因かを示す" "出どころが出ていない" ;; esac
+# t2.map は §C で「不足を検出する」ために**わざと**参照先を欠かしてある。
+# ここでは「全て揃っていれば 0」を見たいので、両方どけてから確かめる。
+rm -f "$SB/home/.config/secrets/ghost.map" "$SB/home/.config/secrets/t2.map"
+run secret-check >/dev/null 2>&1
+check "参照先が揃っていれば終了コード 0" "0" "$?"
+
+echo
+echo "== I. secret-sync の集計行 =="
 
 printf '[]' > "$SB/bw/items.json"
 out="$(run secret-sync 2>&1 | tail -1)"
