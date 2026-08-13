@@ -96,3 +96,13 @@ bw_items() {
   printf '%s' "$j"
   return 0
 }
+
+# フォルダ一覧。項目と同じ理由で、空文字を「フォルダが1つも無い」と解釈させない。
+# 空に化けたまま進むと、既にあるフォルダをもう一度作ってしまう。
+bw_folders() {
+  local j
+  j="$(bw list folders --session "$BW_SESSION" 2>/dev/null)" || return 1
+  printf '%s' "$j" | jq -e 'type=="array"' >/dev/null 2>&1 || return 1
+  printf '%s' "$j"
+  return 0
+}
