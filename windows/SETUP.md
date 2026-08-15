@@ -114,50 +114,15 @@ PowerShell の実行ポリシーが厳しい場合：
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-## 手順3. 対応表を置く
+## 手順3. 対応表について（手で作らない）
 
-`%USERPROFILE%\.config\secrets\` に以下の `.map` を作ります。
-**秘密は一切含まれていません**（キーチェーン上の「名前」だけ）。
+手順2の `install-windows.ps1` が `maps\*.map` を配置済みです。**ここで作業することはありません。**
 
-`answer-prompter.map`
-```
-OPENAI_API_KEY=api-key/openai/answer-prompter
-```
+正本はリポジトリの `maps/` で、配備先（`%USERPROFILE%\.config\secrets\`）は
+その写しです。**配備先を直接編集しないでください** — 次の配布で戻りますし、
+Mac 側の正本と食い違ったまま気づけなくなります。
 
-`opportunity-radar.map`
-```
-OPENAI_API_KEY=api-key/openai/general
-```
-
-`grading.map`
-```
-OPENAI_API_KEY=api-key/openai/homework-scoring
-GEMINI_API_KEY=api-key/gemini/aistudio
-```
-
-`saiten-assistant.map`
-```
-OPENAI_API_KEY=api-key/openai/saiten-assistant
-REPRO_PASSCODE=app-password/saiten-assistant/staging
-OPENROUTER_API_KEY=api-key/openrouter/saiten-assistant
-```
-
-`voice.map`
-```
-DEEPGRAM_API_KEY=api-key/deepgram/main
-GOOGLE_APPLICATION_CREDENTIALS=@file:service-account/gcp/speech
-```
-
-`default.map`
-```
-ANTHROPIC_API_KEY=api-key/anthropic/test-scoring
-OPENAI_API_KEY=api-key/openai/general
-```
-
-`shibehasu-site.map`（トークン未発行のため、発行するまでこのプロファイルは使えません）
-```
-CLOUDFLARE_API_TOKEN=api-token/cloudflare/shibehasu-site
-```
+いま何が配線されているかは `secret-check.ps1` で見られます（値は出ません）。
 
 ## 手順4. 初回設定（対話端末で1回だけ）
 
@@ -194,26 +159,18 @@ PowerShell は起動時の実行ポリシーを保持するため、`Set-Executi
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\bin\secret-bootstrap.ps1"
 ```
 
-## 対応表を更新する（`.map` を手で書かない）
+## 対応表を更新する
 
-**`.map` の正本は secrets-toolkit リポジトリの `maps/`。** 配備先
-（`%USERPROFILE%\.config\secrets\`）を直接編集しないでください。編集しても次の配布で
-戻りますし、Mac 側の正本と食い違ったまま気づけなくなります。
-
-Mac 側で `maps/` に行が足されたら、Windows ではこの2つだけです。
+Mac 側で `maps/` に行が足されたら、Windows ではこの1行だけです。
 
 ```powershell
-git -C <secrets-toolkitのパス> pull
+git pull; .\windows\install-windows.ps1 -UpdateMaps
 ```
 
-```powershell
-Copy-Item <secrets-toolkitのパス>\maps\*.map "$env:USERPROFILE\.config\secrets\" -Force
-```
+何が増減するかを表示してから更新します。そのあと `secret-check.ps1` で
+新しい項目が `OK` になれば配線完了です（Mac 側は `./install-mac.sh --update-maps`）。
 
-そのあと `secret-check.ps1` で新しい項目が `OK` になれば配線完了です。
-（Mac 側は `./install-mac.sh --update-maps` が同じことをします。）
-
-新しい鍵を足す手順は「金庫へ登録 → Mac 側で `maps/` に1行 → 両機で上記2コマンド」です。
+新しい鍵を足す手順は「金庫へ登録 → `maps/` に1行 → 両機で上記1行」です。
 
 ## 手順5. 金庫から取り込む
 
