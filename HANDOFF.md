@@ -398,11 +398,22 @@ ASCII を強制して測り直すこと。§3-9 と同じ「測り方が実環�
   フォルダの ACL は既定（SYSTEM / Administrators / 本人）。本人限定に絞る余地はある
 
 ### 5-5. その他
+- **キーチェーンに孤児が2件**（`secret-sync`【2】に毎回出る）。**値はどちらも別の正しい名前で
+  金庫にもキーチェーンにも残っている**ので消して失われるものは無い。
+  **削除は破壊的なので本人が行う**（2026-08-15 にその方針で合意）。
+  - `api-token/unverified/saiten-assistant-gcp` — `api-key/google/saiten-assistant` への改名の残骸
+  - `saiten-access-setup (temporary)/cloudflare/api` — 金庫側が規約外の名前だった間に
+    `secret-sync` がその名前のまま取り込んだもの。金庫側は
+    `api-token/cloudflare/saiten-access-setup` へ改名済み（同じ値であることを照合で確認）
+  - 消し方: `security delete-generic-password -a "$USER" -s "<名前>"`
 - **`api-token/unverified/saiten-assistant-gcp` の正体は判明した**（2026-08-14）。
   saiten-assistant の `.env` の `GEMINI_API_KEY` と `GOOGLE_VISION_API_KEY` が**同一の値**で、
   どちらもこの項目と一致した。→ `api-key/google/saiten-assistant` へ改名済み（金庫・キーチェーンとも）。
-  **旧名のキーチェーン項目が孤児として残っている**（`secret-sync`【2】に毎回出る）。
-  値は新名で金庫にもキーチェーンにもあるので、消してよい。削除は破壊的なので未実施。
+- **金庫の項目名は `secret-sync` の入口**（2026-08-15 に2件やり直して確認）。
+  規約外の名前（`civitai api key` / `saiten-access-setup (temporary)/cloudflare/api`）だと
+  `secret-sync` が対応付けられず、`secret-pull` での個別取り込みに逃げることになる。
+  さらに**そのまま同期すると規約外の名前がキーチェーン側にも増える**。
+  スマホから項目を足したら、**まず金庫側で規約名に直してから** `secret-sync` を回すこと。
 - `api-token/cloudflare/saiten-mirror-readonly` は形状からの推定で Cloudflare と判断。**要確認**
 - `shibehasu-site.map` が参照する `api-token/cloudflare/shibehasu-site` は**未発行**。
   `secret-check` の唯一の MISS はこれ。発行は Cloudflare のダッシュボードでしかできない
