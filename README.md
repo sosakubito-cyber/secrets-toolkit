@@ -49,15 +49,26 @@ Bitwarden の金庫はプロジェクト単位のフォルダで整理する（�
 ### macOS
 
 ```bash
-./install-mac.sh
+./install-mac.sh                 # 既存の対応表は上書きしない
+./install-mac.sh --update-maps   # 対応表も正本で上書きする
 ```
-
-`mac/` の11本を `~/.local/bin/` へ、`maps/` を `~/.config/secrets/` へ配置する。
-初回のみ `secret-bootstrap` を対話端末で実行する。
 
 ### Windows
 
-`windows/SETUP.md` を参照。Windows 11 / Windows PowerShell 5.1 (ja-JP) /
+```powershell
+.\windows\install-windows.ps1
+.\windows\install-windows.ps1 -UpdateMaps
+```
+
+どちらもスクリプトを `~/.local/bin` へ、`maps/` を `~/.config/secrets/` へ配置する。
+初回のみ `secret-bootstrap` を対話端末で実行する。
+
+**`.map` を配備先で直接編集しない。** 正本はこのリポジトリで、
+`--update-maps` / `-UpdateMaps` を付けたときに配備先へ反映される。
+付けない既定では上書きせず、差分の件数と反映コマンドだけを表示する
+（配備先にしかない行を黙って消さないため。実際に2行救われたことがある）。
+
+詳細は `windows/SETUP.md`。Windows 11 / Windows PowerShell 5.1 (ja-JP) /
 Bitwarden CLI 2026.7.0 で、実データを通した往復まで検証済み。
 
 **Windows 版は9本（Mac は11本）。** 未移植は `secret-rotate-bw`（Bitwarden APIキーの入れ替え）と

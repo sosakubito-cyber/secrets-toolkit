@@ -77,22 +77,30 @@ bw --version
 （このリグレッションは「セッションは返るのに金庫は施錠のまま」という形で出るため、
 バージョン番号での判定だけでは取りこぼします）。2026.7.0 は実機で正常動作を確認済み。
 
-## 手順2. スクリプトを配置する
+## 手順2. スクリプトと対応表を配置する
 
-`windows\` フォルダの10ファイルを `%USERPROFILE%\.local\bin\` に置きます。
+リポジトリの中で、これ1つです。**手でコピーしないでください。**
 
-- `_secret-common.ps1`（共通処理・単体実行しない）
-- `secret-bootstrap.ps1`
-- `secret-sync.ps1`
-- `secrets-run.ps1`
-- `secret-check.ps1`
-- `secret-put.ps1`
-- `secret-push-bw.ps1`
-- `secret-pull.ps1`
-- `secret-verify.ps1`
-- `secret-list-remote.ps1`
+```powershell
+git pull; .\windows\install-windows.ps1
+```
 
-`.ps1` は **UTF-8 BOM 付きのまま**コピーしてください（理由は冒頭の落とし穴1）。
+`windows\*.ps1` を `%USERPROFILE%\.local\bin\` へ、`maps\*.map` を
+`%USERPROFILE%\.config\secrets\` へ配ります。Mac 側の `./install-mac.sh` と同じ役割・同じ既定です。
+
+- **既存の対応表は上書きしません。** 差分があれば件数と反映コマンドを表示します。
+  配備先だけに足された行を黙って消さないためです（Mac 側で実際に2行救われました）
+- 正本に合わせて上書きするときは `-UpdateMaps` を付けます。何が増減するかを先に表示します
+
+```powershell
+git pull; .\windows\install-windows.ps1 -UpdateMaps
+```
+
+**新しい鍵を足したあとの配線は、この1行を両機で走らせるだけです**
+（Mac は `./install-mac.sh --update-maps`）。`.map` を手で編集すると正本とずれます。
+
+`.ps1` は UTF-8 BOM 付きで管理されています（理由は冒頭の落とし穴1）。
+`Copy-Item` はバイト列をそのまま複製するので BOM は保たれます。
 
 PATH に追加：
 
