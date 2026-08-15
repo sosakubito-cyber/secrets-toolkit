@@ -18,3 +18,7 @@ FISH_AUDIO_API_KEY=api-key/fish-audio/main
 # Civitai は金庫側が `civitai api key`（フォルダなし）だったので規約名へ改名済み。
 # Windows 側は secret-pull で先にこの名前でローカルへ入れてあるので、両機とも解決できる。
 CIVITAI_API_KEY=api-key/civitai/listening-quiz-factory
+# Cloud TTS。gcloud の標準出力から secret-put へ直接パイプして作られたので、
+# 値は一度も画面・ログに出ていない（作り直しも同じ1行で完結する）:
+#   gcloud services api-keys create --format="value(response.keyString)" | secret-put <名前>
+GOOGLE_CLOUD_TTS_API_KEY=api-key/google-cloud-tts/listening-quiz-factory

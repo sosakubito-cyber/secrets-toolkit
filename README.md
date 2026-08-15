@@ -84,6 +84,22 @@ secret-sync                            # 金庫→ローカルを一括同期
 secret-check                           # 登録状況（値は出ない）
 ```
 
+## 発行元に CLI があるなら、値を誰にも見せずに登録できる
+
+一番危ないのは**新しいキーを作って登録するまで**の区間。画面・クリップボード・会話ログの
+どこかを必ず通る。発行元が CLI を持っている場合は、その標準出力を `secret-put` へ
+直接パイプすれば、**その区間そのものが無くなる**。
+
+```bash
+gcloud services api-keys create --format="value(response.keyString)" | secret-put api-key/google-cloud-tts/listening-quiz-factory
+```
+
+続けて `secret-push-bw` で金庫へ入れれば正本も揃う。**作り直しも同じ1行**で済むので、
+ローテーションの手間もほぼ消える（2026-08-15 に Cloud TTS のキーで実施）。
+
+`--format` で**キー文字列だけ**を出すこと。JSON 全体を出して後から抜くと、
+途中の出力が端末やログに残る。
+
 ## 設計上の約束
 
 - どのツールも**秘密の値を標準出力・標準エラーに出さない**。照合はすべてハッシュ比較で行う
