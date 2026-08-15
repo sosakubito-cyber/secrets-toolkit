@@ -9,3 +9,7 @@ ANTHROPIC_API_KEY=api-key/anthropic/test-scoring
 # ハッシュ照合で確認済み（2026-08-14）。旧名 api-token/unverified/saiten-assistant-gcp。
 GEMINI_API_KEY=api-key/google/saiten-assistant
 GOOGLE_VISION_API_KEY=api-key/google/saiten-assistant
+# staging へ入るための Cloudflare Access サービストークン（§5-2 の repro-run 用）。
+# 配備先で直接足されていたものを 2026-08-15 に正本へ取り込んだ。
+CF_ACCESS_CLIENT_ID=api-token/cloudflare/saiten-access-staging-id
+CF_ACCESS_CLIENT_SECRET=api-token/cloudflare/saiten-access-staging-secret

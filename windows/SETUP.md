@@ -186,6 +186,27 @@ PowerShell は起動時の実行ポリシーを保持するため、`Set-Executi
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.local\bin\secret-bootstrap.ps1"
 ```
 
+## 対応表を更新する（`.map` を手で書かない）
+
+**`.map` の正本は secrets-toolkit リポジトリの `maps/`。** 配備先
+（`%USERPROFILE%\.config\secrets\`）を直接編集しないでください。編集しても次の配布で
+戻りますし、Mac 側の正本と食い違ったまま気づけなくなります。
+
+Mac 側で `maps/` に行が足されたら、Windows ではこの2つだけです。
+
+```powershell
+git -C <secrets-toolkitのパス> pull
+```
+
+```powershell
+Copy-Item <secrets-toolkitのパス>\maps\*.map "$env:USERPROFILE\.config\secrets\" -Force
+```
+
+そのあと `secret-check.ps1` で新しい項目が `OK` になれば配線完了です。
+（Mac 側は `./install-mac.sh --update-maps` が同じことをします。）
+
+新しい鍵を足す手順は「金庫へ登録 → Mac 側で `maps/` に1行 → 両機で上記2コマンド」です。
+
 ## 手順5. 金庫から取り込む
 
 ```powershell
