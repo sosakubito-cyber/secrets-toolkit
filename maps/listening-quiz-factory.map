@@ -15,3 +15,6 @@ ELEVENLABS_API_KEY=api-key/elevenlabs/listening-quiz-factory
 GEMINI_API_KEY=api-key/gemini/aistudio
 # Fish はアカウント 1 つを全プロジェクトで共有するので main（金庫の実名に一致）
 FISH_AUDIO_API_KEY=api-key/fish-audio/main
+# Civitai は金庫側が `civitai api key`（フォルダなし）だったので規約名へ改名済み。
+# Windows 側は secret-pull で先にこの名前でローカルへ入れてあるので、両機とも解決できる。
+CIVITAI_API_KEY=api-key/civitai/listening-quiz-factory
