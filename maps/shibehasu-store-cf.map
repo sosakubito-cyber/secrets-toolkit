@@ -1,0 +1,5 @@
+# shibehasu-store: Cloudflare の一時的な設定作業（Access アプリ・Turnstile・メール転送）に使う既存トークン。
+# 値はキーチェーンから secrets-run が注入する。名前だけをここに書く。
+CF_TOKEN_ACCESS=api-token/cloudflare/saiten-access-setup
+CF_TOKEN_BACKLOG=api-token/cloudflare/saiten-backlog
+CF_TOKEN_FUSHIGI=api-token/cloudflare/fushigi-touch
