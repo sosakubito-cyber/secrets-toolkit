@@ -1,0 +1,4 @@
+# shibehasu-store: Worker の secrets。本番投入は
+#   secrets-run shibehasu-store -- sh -c 'printf %s "$PII_KEY" | npx wrangler secret put PII_KEY'
+# Stripe / Turnstile の行は、キーチェーンに登録できた時点で追記する（未登録の行があると secrets-run が止まるため）。
+PII_KEY=api-token/shibehasu-store/pii-key
